@@ -22,6 +22,8 @@ import java.util.List;
  * @param sampleReviews 근거용 대표 리뷰 (3~5건 권장)
  * @param mallReviewCount 쇼핑몰이 표시하는 전체 리뷰 수. 모르면 null.
  *                        분석 리뷰 수와 다를 수 있어 따로 싣는다
+ * @param analysisSampled 수집된 리뷰 중 일부만 골라 분석했으면 true, 전부 분석했으면 false. 모르면 null
+ * @param collectedReviewCount 분석할 때 Re:View 가 수집해 둔 리뷰 수. 모르면 null
  */
 public record ProductAnalysisContext(
         String productId,
@@ -35,7 +37,9 @@ public record ProductAnalysisContext(
         List<String> cons,
         List<String> trustSignals,
         List<SampleReview> sampleReviews,
-        Integer mallReviewCount
+        Integer mallReviewCount,
+        Boolean analysisSampled,
+        Integer collectedReviewCount
 ) {
 
     /** 쇼핑몰 전체 리뷰 수를 모를 때 */
@@ -44,7 +48,7 @@ public record ProductAnalysisContext(
                                   List<String> pros, List<String> cons, List<String> trustSignals,
                                   List<SampleReview> sampleReviews) {
         this(productId, productName, price, category, averageRti, trustGrade, totalReviews,
-                pros, cons, trustSignals, sampleReviews, null);
+                pros, cons, trustSignals, sampleReviews, null, null, null);
     }
 
     /**
@@ -54,8 +58,18 @@ public record ProductAnalysisContext(
      * @param rating  평점
      * @param rti     이 리뷰의 RTI
      * @param grade   이 리뷰의 등급
+     * @param reasons 이 리뷰의 판단 근거 (화면과 같은 한국어 라벨)
      */
-    public record SampleReview(String content, Integer rating, Double rti, String grade) {}
+    public record SampleReview(String content, Integer rating, Double rti, String grade, List<String> reasons) {
+
+        public SampleReview {
+            reasons = reasons == null ? List.of() : List.copyOf(reasons);
+        }
+
+        public SampleReview(String content, Integer rating, Double rti, String grade) {
+            this(content, rating, rti, grade, List.of());
+        }
+    }
 
     /** 표본이 적어 등급을 단정하기 어려운 구간. 계획서의 '판단 보류' 정책과 맞춘다. */
     public static final int MIN_RELIABLE_REVIEWS = 30;

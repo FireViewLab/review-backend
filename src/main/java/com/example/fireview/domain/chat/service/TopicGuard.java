@@ -1,9 +1,11 @@
 package com.example.fireview.domain.chat.service;
 
 import com.example.fireview.domain.chat.port.ProductAnalysisContext;
+import com.example.fireview.domain.review.entity.TrustGrade;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
@@ -50,6 +52,11 @@ public class TopicGuard {
     /** 응답에서 숫자 형태의 RTI/점수 표현을 찾아낸다. 예: "RTI 87", "신뢰도 92.5점" */
     private static final Pattern SCORE_MENTION =
             Pattern.compile("(?i)(RTI|신뢰도\\s*(지수|점수)?|점수)\\s*(는|은|가|이)?\\s*:?\\s*(\\d{1,3}(?:\\.\\d+)?)\\s*(점|%)?");
+
+    /** 등급 경계. 답변에 기준으로 나와도 근거 있는 수치다 */
+    private static final List<Double> GRADE_THRESHOLDS = List.of(
+            TrustGrade.SAFE_MIN_SCORE,
+            TrustGrade.SUSPICIOUS_MIN_SCORE);
 
     /** 허용 오차. 소수점 표기 차이(87 vs 87.0)를 흡수한다. */
     private static final double SCORE_TOLERANCE = 0.5;
@@ -123,7 +130,9 @@ public class TopicGuard {
             return Verdict.allow();
         }
 
-        List<Double> known = context.knownRtiValues();
+        List<Double> known = new ArrayList<>(context.knownRtiValues());
+        // 등급 기준값. 모델이 "70점 이상이면 안전"처럼 기준을 설명하면 데이터에 없는 점수로 보고 막았다(#217)
+        known.addAll(GRADE_THRESHOLDS);
         Matcher m = SCORE_MENTION.matcher(answer);
         while (m.find()) {
             double mentioned = Double.parseDouble(m.group(4));

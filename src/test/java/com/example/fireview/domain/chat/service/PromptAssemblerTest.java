@@ -68,12 +68,43 @@ class PromptAssemblerTest {
     void 분석_리뷰_수와_쇼핑몰_리뷰_수를_따로_싣는다() {
         var ctx = new com.example.fireview.domain.chat.port.ProductAnalysisContext(
                 "oliveyoung-A1", "크림", 27600, null, 95.5, "안전", 208,
-                java.util.List.of(), java.util.List.of(), java.util.List.of(), java.util.List.of(), 5305);
+                java.util.List.of(), java.util.List.of(), java.util.List.of(), java.util.List.of(), 5305, null, null);
 
         String message = assembler.buildUserMessage(ctx, "분석에 쓴 리뷰는 몇 건이야?");
 
         assertThat(message).contains("\"분석리뷰수\" : 208").contains("\"쇼핑몰전체리뷰수\" : 5305")
                 .contains("\"평균RTI\" : 95.5").doesNotContain("판단 보류");
         assertThat(assembler.systemPrompt()).contains("분석에 쓴 리뷰가 몇 건인지는 분석리뷰수로만 답해라");
+    }
+
+    @Test
+    void 분석_범위를_말로_싣는다() {
+        var all = context(false, 208);
+        var sampled = context(true, 800);
+
+        assertThat(assembler.buildUserMessage(all, "q")).contains("수집된 리뷰 208건을 모두 분석");
+        assertThat(assembler.buildUserMessage(sampled, "q")).contains("수집된 리뷰 800건 중 208건을 표본으로 골라 분석");
+        assertThat(assembler.buildUserMessage(context(null, null), "q")).doesNotContain("분석범위");
+        assertThat(assembler.systemPrompt()).contains("표본을 추출했다고 말하지 마라");
+    }
+
+    @Test
+    void 대표_리뷰의_판단_근거를_싣는다() {
+        var ctx = new com.example.fireview.domain.chat.port.ProductAnalysisContext(
+                "oliveyoung-A1", "크림", null, null, 95.5, "안전", 208,
+                java.util.List.of(), java.util.List.of(), java.util.List.of(),
+                java.util.List.of(new com.example.fireview.domain.chat.port.ProductAnalysisContext.SampleReview(
+                        "좋아요 좋아요", 5, 90.0, "안전", java.util.List.of("반복 표현"))),
+                null, null, null);
+
+        assertThat(assembler.buildUserMessage(ctx, "q")).contains("판단근거").contains("반복 표현");
+        assertThat(assembler.systemPrompt()).contains("분석된 전체 리뷰의 최저점은 아니다");
+    }
+
+    private static com.example.fireview.domain.chat.port.ProductAnalysisContext context(Boolean sampled, Integer collected) {
+        return new com.example.fireview.domain.chat.port.ProductAnalysisContext(
+                "oliveyoung-A1", "크림", null, null, 95.5, "안전", 208,
+                java.util.List.of(), java.util.List.of(), java.util.List.of(), java.util.List.of(),
+                5305, sampled, collected);
     }
 }

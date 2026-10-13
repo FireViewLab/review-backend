@@ -15,8 +15,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -46,6 +50,36 @@ public class DataServerProductAnalysisAdapter implements ProductAnalysisPort {
 
     /** 프롬프트에 실을 대표 리뷰 수. 토큰 예산 때문에 전부 넣지 않는다 */
     private static final int MAX_SAMPLES = 5;
+
+    /**
+     * 첫 페이지에 점수 있는 리뷰가 없을 때 더 받아 볼 페이지 수.
+     * 최신 리뷰는 분석 뒤에 올라와 점수가 없는 경우가 많다(#217). 한 페이지가 20건이라 두 번이면
+     * 대부분 분석된 리뷰에 닿는다. 그 이상은 답변 지연이 커서 멈춘다.
+     */
+    private static final int MAX_EXTRA_PAGES = 2;
+
+    /** 점수 있는 리뷰가 이만큼 모이면 더 받지 않는다 */
+    private static final int ENOUGH_SCORED = 3;
+
+    /**
+     * AI 판단 근거 코드 → 화면 라벨. 프론트 {@code ReviewEvidenceFormatter} 와 같은 문구를 쓴다.
+     * 접두사(TEXT_·BEHAVIOR_·NETWORK_)가 없는 옛 코드도 같은 라벨로 받는다. 모르는 코드는 싣지 않는다.
+     */
+    private static final Map<String, String> REASON_LABELS = Map.ofEntries(
+            Map.entry("REPETITIVE_KEYWORD", "반복 표현"),
+            Map.entry("SHORT_REVIEW", "짧은 리뷰"),
+            Map.entry("EXCESSIVE_EXCLAMATION", "잦은 느낌표"),
+            Map.entry("OVERLY_POSITIVE_SENTIMENT", "강한 긍정 표현"),
+            Map.entry("PURCHASE_NOT_VERIFIED", "구매 인증 미확인"),
+            Map.entry("NEW_ACCOUNT", "가입 초기 작성"),
+            Map.entry("MULTIPLE_REVIEWS_SAME_DAY", "하루에 여러 리뷰"),
+            Map.entry("SIMILAR_REVIEW_PATTERN", "비슷한 리뷰 내용"),
+            Map.entry("SIMILAR_REVIEW_CLUSTER", "유사 리뷰 묶음"),
+            Map.entry("LOW_QUALITY_SCORE", "낮은 내용 품질 점수"),
+            Map.entry("PURCHASE_UNKNOWN", "구매 여부 불명확"),
+            Map.entry("FREE_TRIAL_REVIEW", "체험·무상 제공 가능성"),
+            Map.entry("NO_IMAGE_ATTACHED", "첨부 사진 없음"),
+            Map.entry("REPURCHASE_SIGNAL", "재구매 신호"));
 
     /**
      * Data 서버 level → 챗봇 등급 어휘. 시스템 프롬프트가 "안전/주의/위험" 으로 말하므로 맞춘다.
@@ -96,6 +130,8 @@ public class DataServerProductAnalysisAdapter implements ProductAnalysisPort {
 
         Integer mallReviewCount = mallReviewCount(product.reviewCount(), saved);
         Double averageRti = savedAverageRti(saved);
+        DataServerAnalysis analysis = response.analysis();
+        boolean detailDone = isDone(analysis);
 
         return new ProductAnalysisContext(
                 externalId,
@@ -104,12 +140,52 @@ public class DataServerProductAnalysisAdapter implements ProductAnalysisPort {
                 product.category(),
                 averageRti,
                 averageRti == null ? null : GRADE_BY_LEVEL.get(TrustGrade.fromScore(averageRti).toLevel()),
-                analyzedReviewCount(response.analysis(), saved, mallReviewCount, reviews.size()),
+                analyzedReviewCount(analysis, saved, mallReviewCount, reviews.size()),
                 List.of(),  // pros
                 List.of(),  // cons
                 List.of(),  // trustSignals
-                toSamples(reviews, analysisResults(response)),
-                mallReviewCount);
+                toSamples(collectScored(key, response)),
+                mallReviewCount,
+                detailDone ? analysis.sampled() : isAnalysisDone(saved) ? saved.getAnalysisSampled() : null,
+                detailDone ? analysis.sourceReviewCount()
+                        : isAnalysisDone(saved) ? saved.getAnalysisSourceReviewCount() : null);
+    }
+
+    /**
+     * 대표 리뷰 후보와 그 분석 결과. 첫 페이지에 점수 있는 리뷰가 모자라면 다음 페이지를
+     * {@link #MAX_EXTRA_PAGES} 번까지 더 받는다. 분석이 끝나지 않았으면 더 받지 않는다.
+     */
+    private Map<DataServerReview, DataServerReviewAnalysis> collectScored(DataServerProductKey key,
+                                                                          DataServerProductResponse first) {
+        Map<DataServerReview, DataServerReviewAnalysis> collected = new LinkedHashMap<>();
+        addPage(collected, first);
+        String cursor = first.reviews() == null ? null : first.reviews().nextCursor();
+        boolean worthPaging = isDone(first.analysis());
+        for (int i = 0; i < MAX_EXTRA_PAGES && worthPaging && cursor != null
+                && scoredCount(collected) < ENOUGH_SCORED; i++) {
+            Optional<DataServerProductResponse> next = dataServerClient.findProduct(key, cursor);
+            if (next.isEmpty()) break;
+            addPage(collected, next.get());
+            cursor = next.get().reviews() == null ? null : next.get().reviews().nextCursor();
+        }
+        return collected;
+    }
+
+    private static void addPage(Map<DataServerReview, DataServerReviewAnalysis> collected,
+                                DataServerProductResponse page) {
+        Map<String, DataServerReviewAnalysis> results = analysisResults(page);
+        for (DataServerReview r : page.reviewItems()) {
+            if (r.content() == null || r.content().isBlank()) continue;
+            collected.putIfAbsent(r, r.reviewId() == null ? null : results.get(r.reviewId()));
+        }
+    }
+
+    private static long scoredCount(Map<DataServerReview, DataServerReviewAnalysis> collected) {
+        return collected.values().stream().filter(a -> a != null && a.rti() != null).count();
+    }
+
+    private static boolean isDone(DataServerAnalysis analysis) {
+        return analysis != null && AnalysisStatus.from(analysis.status()) == AnalysisStatus.DONE;
     }
 
     /**
@@ -119,8 +195,7 @@ public class DataServerProductAnalysisAdapter implements ProductAnalysisPort {
      */
     private static int analyzedReviewCount(DataServerAnalysis analysis, Product saved,
                                            Integer mallReviewCount, int fetched) {
-        if (analysis != null && AnalysisStatus.from(analysis.status()) == AnalysisStatus.DONE
-                && analysis.reviewCount() != null && analysis.reviewCount() > 0) {
+        if (isDone(analysis) && analysis.reviewCount() != null && analysis.reviewCount() > 0) {
             return analysis.reviewCount();
         }
         if (isAnalysisDone(saved) && saved.getAnalysisReviewCount() != null && saved.getAnalysisReviewCount() > 0) {
@@ -139,11 +214,15 @@ public class DataServerProductAnalysisAdapter implements ProductAnalysisPort {
         return saved.getReviewCount();
     }
 
-    /** 분석이 끝난 상품의 평균만. 범위를 벗어난 값은 버린다 */
+    /**
+     * 분석이 끝난 상품의 평균만. 범위를 벗어난 값은 버린다.
+     * 화면처럼 소수 첫째 자리로 맞춘다 — 저장값 95.52 를 그대로 주면 모델이 화면의 95.5 와 다르게 말한다.
+     */
     private static Double savedAverageRti(Product saved) {
         if (!isAnalysisDone(saved)) return null;
         Double avg = saved.getAvgRti();
-        return avg != null && Double.isFinite(avg) && avg >= 0 && avg <= 100 ? avg : null;
+        if (avg == null || !Double.isFinite(avg) || avg < 0 || avg > 100) return null;
+        return Math.round(avg * 10) / 10.0;
     }
 
     private static boolean isAnalysisDone(Product saved) {
@@ -154,20 +233,45 @@ public class DataServerProductAnalysisAdapter implements ProductAnalysisPort {
         return response.analysis() == null ? Map.of() : response.analysis().resultsByReviewId();
     }
 
-    private List<ProductAnalysisContext.SampleReview> toSamples(List<DataServerReview> reviews,
-                                                                Map<String, DataServerReviewAnalysis> results) {
-        return reviews.stream()
-                .filter(r -> r.content() != null && !r.content().isBlank())
+    /**
+     * 점수 있는 리뷰를 먼저 싣는다. 그중 RTI 가 가장 낮은 리뷰를 맨 앞에 두고 나머지는 받은 순서(최신순)대로.
+     * 점수 있는 리뷰가 모자라면 점수 없는 리뷰로 채운다. 최저 리뷰는 <b>받아 온 페이지 안에서</b>의
+     * 최저일 뿐이라 프롬프트도 그렇게 설명한다.
+     */
+    private List<ProductAnalysisContext.SampleReview> toSamples(
+            Map<DataServerReview, DataServerReviewAnalysis> collected) {
+        List<Map.Entry<DataServerReview, DataServerReviewAnalysis>> scored = new ArrayList<>();
+        List<Map.Entry<DataServerReview, DataServerReviewAnalysis>> unscored = new ArrayList<>();
+        collected.entrySet().forEach(e -> (e.getValue() != null && e.getValue().rti() != null ? scored : unscored).add(e));
+
+        List<Map.Entry<DataServerReview, DataServerReviewAnalysis>> picked = new ArrayList<>();
+        scored.stream().min(Comparator.comparingDouble(e -> e.getValue().rti())).ifPresent(picked::add);
+        scored.stream().filter(e -> !picked.contains(e)).forEach(picked::add);
+        picked.addAll(unscored);
+
+        return picked.stream()
                 .limit(MAX_SAMPLES)
-                .map(r -> {
-                    DataServerReviewAnalysis analysis = r.reviewId() == null ? null : results.get(r.reviewId());
+                .map(e -> {
+                    DataServerReview r = e.getKey();
+                    DataServerReviewAnalysis analysis = e.getValue();
                     return new ProductAnalysisContext.SampleReview(
                             r.content(),
                             // Data 서버 평점은 NUMERIC(3,2) 라 4.5 가 올 수 있다
                             r.rating() == null ? null : (int) Math.round(r.rating()),
                             analysis == null ? null : analysis.rti(),
-                            analysis == null ? null : toGrade(analysis.level()));
+                            analysis == null ? null : toGrade(analysis.level()),
+                            analysis == null ? List.of() : reasonLabels(analysis.reasons()));
                 })
+                .toList();
+    }
+
+    private static List<String> reasonLabels(List<String> codes) {
+        return codes.stream()
+                .filter(Objects::nonNull)
+                .map(c -> c.trim().toUpperCase().replaceFirst("^(TEXT|BEHAVIOR|NETWORK)_", ""))
+                .map(REASON_LABELS::get)
+                .filter(Objects::nonNull)
+                .distinct()
                 .toList();
     }
 

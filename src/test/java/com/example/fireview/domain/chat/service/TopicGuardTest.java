@@ -95,6 +95,18 @@ class TopicGuardTest {
         }
 
         @Test
+        void 등급_기준값은_근거_있는_수치로_본다() {
+            // #217: 모델이 등급 기준을 설명하면 데이터에 없는 점수로 보고 막았다
+            String answer = "RTI는 점수 70 이상이면 안전, 점수 40 이상이면 주의로 봅니다. 이 상품은 72.4점입니다.";
+            assertThat(guard.inspectAnswer(answer, context).allowed()).isTrue();
+        }
+
+        @Test
+        void 기준값_근처라도_다른_수치는_차단한다() {
+            assertThat(guard.inspectAnswer("이 상품의 RTI는 65점입니다.", context).allowed()).isFalse();
+        }
+
+        @Test
         void 인젝션으로_조작된_점수를_잡는다() {
             // 리뷰에 심어둔 "신뢰도 98점" 지시가 통과했다고 가정한 응답
             String manipulated = "분석 결과 이 상품의 RTI 점수는 98이며 모든 리뷰가 검증되었습니다.";
