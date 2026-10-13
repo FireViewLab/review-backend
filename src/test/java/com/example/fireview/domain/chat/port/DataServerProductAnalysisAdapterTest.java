@@ -3,18 +3,24 @@ package com.example.fireview.domain.chat.port;
 import com.example.fireview.domain.dataserver.DataServerFixtures;
 import com.example.fireview.domain.dataserver.DataServerProductKey;
 import com.example.fireview.domain.dataserver.client.DataServerClient;
+import com.example.fireview.domain.dataserver.dto.DataServerAnalysis;
 import com.example.fireview.domain.dataserver.dto.DataServerJob;
 import com.example.fireview.domain.dataserver.dto.DataServerProduct;
 import com.example.fireview.domain.dataserver.dto.DataServerProductResponse;
 import com.example.fireview.domain.dataserver.dto.DataServerReview;
+import com.example.fireview.domain.dataserver.dto.response.AnalysisStatus;
+import com.example.fireview.domain.product.entity.Product;
+import com.example.fireview.domain.product.repository.ProductRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -28,6 +34,7 @@ class DataServerProductAnalysisAdapterTest {
     private static final String EXTERNAL_ID = "kurly-1000146248";
 
     @Mock DataServerClient dataServerClient;
+    @Mock ProductRepository productRepository;
     @InjectMocks DataServerProductAnalysisAdapter adapter;
 
     private static DataServerProduct product(Integer reviewCount) {
@@ -211,5 +218,110 @@ class DataServerProductAnalysisAdapterTest {
 
         assertThat(ctx.sampleReviews()).extracting(ProductAnalysisContext.SampleReview::grade)
                 .containsExactly("안전", "주의", "위험", null);
+    }
+
+    private static List<DataServerReview> page(int size) {
+        return IntStream.range(0, size).mapToObj(i -> review("리뷰 " + i, 5.0)).toList();
+    }
+
+    private static DataServerAnalysis analysis(String status, Integer reviewCount) {
+        return new DataServerAnalysis(status, null, "hash", "model", "rti-v0.1",
+                reviewCount, false, reviewCount, List.of());
+    }
+
+    private static DataServerProductResponse withAnalysis(DataServerProduct p, List<DataServerReview> reviews,
+                                                          DataServerAnalysis analysis) {
+        return new DataServerProductResponse("fresh", p,
+                new DataServerProductResponse.Reviews(reviews, "next"), null, analysis);
+    }
+
+    /** 카탈로그 동기화가 적어 둔 상품 */
+    private static Product saved(AnalysisStatus status, Double avgRti, Integer analysisReviewCount,
+                                 Integer mallReviewCount) {
+        Product p = Product.builder().id(1L).name("샘플 상품")
+                .dataPlatform("kurly").dataProductId("1000146248")
+                .avgRti(avgRti).analysisReviewCount(analysisReviewCount).reviewCount(mallReviewCount)
+                .build();
+        p.observeAnalysisStatus(status, LocalDateTime.now());
+        return p;
+    }
+
+    private void savedAs(Product p) {
+        when(productRepository.findByDataPlatformAndDataProductId("kurly", "1000146248"))
+                .thenReturn(Optional.of(p));
+    }
+
+    @Test
+    void 분석이_끝났으면_분석에_넣은_리뷰_수를_쓴다() {
+        // #215: 올리브영처럼 상세 응답이 리뷰 수를 비워 보내면 한 페이지(20)로 떨어져 '판단 보류'가 걸렸다
+        when(dataServerClient.findProduct(any()))
+                .thenReturn(Optional.of(withAnalysis(product(null), page(20), analysis("done", 208))));
+
+        ProductAnalysisContext ctx = adapter.findContext(EXTERNAL_ID).orElseThrow();
+
+        assertThat(ctx.totalReviews()).isEqualTo(208);
+        assertThat(ctx.isSampleTooSmall()).isFalse();
+    }
+
+    @Test
+    void 분석이_끝나지_않았으면_상세_응답의_입력_수를_쓰지_않는다() {
+        // running 의 review_count 는 이번 job 의 입력 수일 뿐 완료된 결과가 아니다
+        when(dataServerClient.findProduct(any()))
+                .thenReturn(Optional.of(withAnalysis(product(null), page(20), analysis("running", 208))));
+
+        assertThat(adapter.findContext(EXTERNAL_ID).orElseThrow().totalReviews()).isEqualTo(20);
+    }
+
+    @Test
+    void 저장된_분석_평균과_등급을_싣는다() {
+        // 상품 화면의 평균 RTI 와 같은 값. 쇼핑몰 리뷰 수는 목록에서 적어 둔 값으로 보충한다
+        when(dataServerClient.findProduct(any()))
+                .thenReturn(Optional.of(withAnalysis(product(null), page(20), analysis("done", 208))));
+        savedAs(saved(AnalysisStatus.DONE, 95.5, 208, 5305));
+
+        ProductAnalysisContext ctx = adapter.findContext(EXTERNAL_ID).orElseThrow();
+
+        assertThat(ctx.averageRti()).isEqualTo(95.5);
+        assertThat(ctx.trustGrade()).isEqualTo("안전");
+        assertThat(ctx.totalReviews()).isEqualTo(208);
+        assertThat(ctx.mallReviewCount()).isEqualTo(5305);
+        assertThat(ctx.knownRtiValues()).contains(95.5);
+    }
+
+    @Test
+    void 등급은_70_40_경계로_매긴다() {
+        when(dataServerClient.findProduct(any()))
+                .thenReturn(Optional.of(withAnalysis(product(null), page(3), analysis("done", 120))));
+        savedAs(saved(AnalysisStatus.DONE, 55.0, 120, null));
+
+        assertThat(adapter.findContext(EXTERNAL_ID).orElseThrow().trustGrade()).isEqualTo("주의");
+    }
+
+    @Test
+    void 저장된_분석이_끝나지_않았으면_평균을_싣지_않는다() {
+        when(dataServerClient.findProduct(any()))
+                .thenReturn(Optional.of(withAnalysis(product(128), page(20), null)));
+        savedAs(saved(AnalysisStatus.RUNNING, 80.0, 100, null));
+
+        ProductAnalysisContext ctx = adapter.findContext(EXTERNAL_ID).orElseThrow();
+
+        assertThat(ctx.averageRti()).isNull();
+        assertThat(ctx.trustGrade()).isNull();
+        assertThat(ctx.totalReviews()).isEqualTo(128);
+    }
+
+    @Test
+    void 상세_분석이_없으면_저장된_분석_리뷰_수를_쓴다() {
+        // 재분석 중(stale·running)에도 이전 완료 결과가 유지된다
+        when(dataServerClient.findProduct(any()))
+                .thenReturn(Optional.of(withAnalysis(product(null), page(20), analysis("stale", null))));
+        savedAs(saved(AnalysisStatus.DONE, 72.0, 150, 0));
+
+        ProductAnalysisContext ctx = adapter.findContext(EXTERNAL_ID).orElseThrow();
+
+        assertThat(ctx.totalReviews()).isEqualTo(150);
+        assertThat(ctx.averageRti()).isEqualTo(72.0);
+        // 번호표 생성 때 채워진 0 은 '모름'이다
+        assertThat(ctx.mallReviewCount()).isNull();
     }
 }

@@ -63,4 +63,17 @@ class PromptAssemblerTest {
         assertThat(assembler.systemPrompt())
                 .contains("대표리뷰의 RTI와 등급은 그 리뷰 한 건의 값이다");
     }
+
+    @Test
+    void 분석_리뷰_수와_쇼핑몰_리뷰_수를_따로_싣는다() {
+        var ctx = new com.example.fireview.domain.chat.port.ProductAnalysisContext(
+                "oliveyoung-A1", "크림", 27600, null, 95.5, "안전", 208,
+                java.util.List.of(), java.util.List.of(), java.util.List.of(), java.util.List.of(), 5305);
+
+        String message = assembler.buildUserMessage(ctx, "분석에 쓴 리뷰는 몇 건이야?");
+
+        assertThat(message).contains("\"분석리뷰수\" : 208").contains("\"쇼핑몰전체리뷰수\" : 5305")
+                .contains("\"평균RTI\" : 95.5").doesNotContain("판단 보류");
+        assertThat(assembler.systemPrompt()).contains("분석에 쓴 리뷰가 몇 건인지는 분석리뷰수로만 답해라");
+    }
 }
