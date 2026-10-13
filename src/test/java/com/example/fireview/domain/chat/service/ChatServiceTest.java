@@ -463,6 +463,60 @@ class ChatServiceTest {
         verify(llmClient, times(1)).complete(anyString(), any(), anyString(), any());
     }
 
+    // ── #219: 근거 없는 수치는 한 번 다시 쓰게 한다 ──────────────────────────
+
+    @Test
+    void 근거_없는_수치가_섞이면_한_번_다시_써서_통과시킨다() {
+        when(llmClient.complete(anyString(), any(), anyString(), any()))
+                .thenReturn(new LlmClient.LlmResponse("ONTOPIC: yes\n---\n신뢰도는 98점으로 매우 안전합니다.", 1800, 100))
+                .thenReturn(new LlmClient.LlmResponse("ONTOPIC: yes\n---\n평균 RTI는 72.4점으로 주의 등급입니다.", 1900, 90));
+
+        ChatService.ChatResult result = service.ask(EMAIL, ChatTier.STANDARD, null, PRODUCT_ID, "믿을 만해?");
+
+        assertThat(result.blocked()).isFalse();
+        assertThat(result.answer()).contains("72.4");
+        assertThat(result.usedTokens()).isEqualTo(1800 + 100 + 1900 + 90);
+        ArgumentCaptor<String> messages = ArgumentCaptor.forClass(String.class);
+        verify(llmClient, times(2)).complete(anyString(), any(), messages.capture(), any());
+        assertThat(messages.getAllValues().get(1)).contains("다시 작성 요청").contains("점수 98");
+        // 사용량은 질문 한 번만 깎는다
+        assertThat(quotaStore.used(user.getId())).isEqualTo(1);
+    }
+
+    @Test
+    void 다시_써도_근거_없는_수치가_있으면_차단한다() {
+        givenLlmReturns("ONTOPIC: yes\n---\n이 상품의 신뢰도는 98점으로 매우 안전합니다.", 1800, 100);
+
+        ChatService.ChatResult result = service.ask(EMAIL, ChatTier.STANDARD, null, PRODUCT_ID, "믿을 만해?");
+
+        assertThat(result.blocked()).isTrue();
+        assertThat(result.blockReason()).isEqualTo("UNGROUNDED_SCORE");
+        verify(llmClient, times(2)).complete(anyString(), any(), anyString(), any());
+    }
+
+    @Test
+    void 다시_쓰기_호출이_실패하면_차단으로_끝내고_사용량은_돌려주지_않는다() {
+        when(llmClient.complete(anyString(), any(), anyString(), any()))
+                .thenReturn(new LlmClient.LlmResponse("ONTOPIC: yes\n---\n신뢰도는 98점입니다.", 1800, 100))
+                .thenThrow(new IllegalStateException("gateway timeout"));
+
+        ChatService.ChatResult result = service.ask(EMAIL, ChatTier.STANDARD, null, PRODUCT_ID, "믿을 만해?");
+
+        assertThat(result.blocked()).isTrue();
+        assertThat(result.blockReason()).isEqualTo("UNGROUNDED_SCORE");
+        assertThat(quotaStore.used(user.getId())).isEqualTo(1);
+    }
+
+    @Test
+    void 근거_있는_답변은_다시_쓰지_않는다() {
+        givenLlmReturns("ONTOPIC: yes\n---\nRTI는 100점 만점에 72.4점이고, 0~100 사이 점수예요.", 1800, 60);
+
+        ChatService.ChatResult result = service.ask(EMAIL, ChatTier.STANDARD, null, PRODUCT_ID, "점수 알려줘");
+
+        assertThat(result.blocked()).isFalse();
+        verify(llmClient, times(1)).complete(anyString(), any(), anyString(), any());
+    }
+
     private void givenLlmReturns(String raw, int inputTokens, int outputTokens) {
         when(llmClient.complete(anyString(), any(), anyString(), any()))
                 .thenReturn(new LlmClient.LlmResponse(raw, inputTokens, outputTokens));

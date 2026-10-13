@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -53,10 +54,19 @@ public class TopicGuard {
     private static final Pattern SCORE_MENTION =
             Pattern.compile("(?i)(RTI|신뢰도\\s*(지수|점수)?|점수)\\s*(는|은|가|이)?\\s*:?\\s*(\\d{1,3}(?:\\.\\d+)?)\\s*(점|%)?");
 
+    /**
+     * 점수가 아니라 척도를 말하는 표현. "100점 만점에", "0~100 사이" 의 0·100 을 점수로 읽어
+     * 막던 오탐을 없앤다(#219). 대조 전에 지운다.
+     */
+    private static final Pattern SCALE_EXPRESSION = Pattern.compile(
+            "\\d{1,3}\\s*점?\\s*만점|0\\s*(?:~|-|–|에서|부터)\\s*100");
+
     /** 등급 경계. 답변에 기준으로 나와도 근거 있는 수치다 */
     private static final List<Double> GRADE_THRESHOLDS = List.of(
             TrustGrade.SAFE_MIN_SCORE,
             TrustGrade.SUSPICIOUS_MIN_SCORE);
+
+    public static final String UNGROUNDED_SCORE = "UNGROUNDED_SCORE";
 
     /** 허용 오차. 소수점 표기 차이(87 vs 87.0)를 흡수한다. */
     private static final double SCORE_TOLERANCE = 0.5;
@@ -126,23 +136,35 @@ public class TopicGuard {
         if (answer == null || answer.isBlank()) {
             return Verdict.block("EMPTY_ANSWER", "답변을 생성하지 못했습니다. 다시 시도해주세요.");
         }
-        if (context == null) {
-            return Verdict.allow();
+        if (findUngroundedScore(answer, context).isPresent()) {
+            return Verdict.block(UNGROUNDED_SCORE,
+                    "답변에 확인되지 않은 수치가 포함되어 표시하지 않았습니다. 다시 질문해주세요.");
         }
+        return Verdict.allow();
+    }
 
+    /**
+     * 데이터에 없는 첫 점수. 없으면 비어 있다. 컨텍스트가 없으면 대조하지 않는다.
+     * 다시 쓰게 할 때 어느 수치가 문제였는지 알려 주려고 따로 둔다.
+     */
+    public Optional<Double> findUngroundedScore(String answer, ProductAnalysisContext context) {
+        if (answer == null || context == null) {
+            return Optional.empty();
+        }
         List<Double> known = new ArrayList<>(context.knownRtiValues());
         // 등급 기준값. 모델이 "70점 이상이면 안전"처럼 기준을 설명하면 데이터에 없는 점수로 보고 막았다(#217)
         known.addAll(GRADE_THRESHOLDS);
-        Matcher m = SCORE_MENTION.matcher(answer);
+
+        Matcher m = SCORE_MENTION.matcher(SCALE_EXPRESSION.matcher(answer).replaceAll(" "));
         while (m.find()) {
             double mentioned = Double.parseDouble(m.group(4));
             boolean grounded = known.stream().anyMatch(k -> Math.abs(k - mentioned) <= SCORE_TOLERANCE);
             if (!grounded) {
-                log.warn("[TopicGuard] 근거 없는 수치 차단 - mentioned={}, known={}", mentioned, known);
-                return Verdict.block("UNGROUNDED_SCORE",
-                        "답변에 확인되지 않은 수치가 포함되어 표시하지 않았습니다. 다시 질문해주세요.");
+                log.warn("[TopicGuard] 근거 없는 수치 - mentioned={}, known={}, at=\"{}\"",
+                        mentioned, known, m.group());
+                return Optional.of(mentioned);
             }
         }
-        return Verdict.allow();
+        return Optional.empty();
     }
 }

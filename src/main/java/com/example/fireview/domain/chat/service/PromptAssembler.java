@@ -132,6 +132,23 @@ public class PromptAssembler {
                 사용자 질문: %s""".formatted(toJson(context), question);
     }
 
+    /**
+     * 근거 없는 수치가 섞인 초안을 한 번 다시 쓰게 하는 요청. 원래 사용자 메시지 뒤에 덧붙인다.
+     * 같은 응답 형식(ONTOPIC 줄 등)을 지키게 하려고 시스템 프롬프트와 대화 기록은 그대로 쓴다.
+     */
+    public String rewriteRequest(String userMessage, double ungroundedScore) {
+        String score = ungroundedScore == Math.rint(ungroundedScore)
+                ? String.valueOf((long) ungroundedScore) : String.valueOf(ungroundedScore);
+        return userMessage + """
+
+
+                [다시 작성 요청]
+                직전 초안에 <분석_데이터>에 없는 점수 %s 가 들어 있었다.
+                RTI나 점수는 <분석_데이터>에 있는 값만 써라. 척도나 기준을 설명할 때도
+                데이터에 없는 점수를 새로 만들지 말고, 필요 없으면 숫자 없이 설명해라.
+                응답 형식은 처음 지시와 같게 지켜라.""".formatted(score);
+    }
+
     private String toJson(ProductAnalysisContext context) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("상품명", context.productName());
