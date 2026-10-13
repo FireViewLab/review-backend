@@ -25,6 +25,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 챗봇 대화 오케스트레이션.
@@ -129,10 +130,35 @@ public class ChatService {
         }
 
         // ── 세이프가드 4계층: 근거 없는 수치 차단 ──
-        TopicGuard.Verdict output = topicGuard.inspectAnswer(parsed.answer(), context);
-        if (!output.allowed()) {
-            return Turn.of(blockAndSave(session, user, plan, question, output.reason(), output.userMessage(),
-                    response.inputTokens(), response.outputTokens()));
+        // 같은 질문도 모델 표현에 따라 데이터에 없는 수치가 섞여 간헐적으로 막혔다(#219).
+        // 바로 막지 않고 문제 수치를 알려 한 번만 다시 쓰게 한다. 다시 써도 섞이면 막는다.
+        Optional<Double> ungrounded = topicGuard.findUngroundedScore(parsed.answer(), context);
+        if (ungrounded.isPresent()) {
+            log.info("[Chat] 근거 없는 수치로 다시 작성 - sessionId={}, mentioned={}",
+                    session.getId(), ungrounded.get());
+            LlmClient.LlmResponse retry;
+            try {
+                retry = llmClient.complete(systemPrompt, history,
+                        promptAssembler.rewriteRequest(userMessage, ungrounded.get()),
+                        planPolicy.llmOptions(tier));
+            } catch (RuntimeException e) {
+                // 첫 답변은 받았으므로 사용량은 그대로 두고 차단으로 끝낸다
+                log.warn("[Chat] 다시 작성 호출 실패 - sessionId={}: {}", session.getId(), e.getMessage());
+                retry = null;
+            }
+            int inputTokens = response.inputTokens() + (retry == null ? 0 : retry.inputTokens());
+            int outputTokens = response.outputTokens() + (retry == null ? 0 : retry.outputTokens());
+            LlmAnswer rewritten = retry == null ? null : LlmAnswer.parse(retry.text());
+            TopicGuard.Verdict output = rewritten == null || !rewritten.onTopic()
+                    ? TopicGuard.Verdict.block(TopicGuard.UNGROUNDED_SCORE,
+                            "답변에 확인되지 않은 수치가 포함되어 표시하지 않았습니다. 다시 질문해주세요.")
+                    : topicGuard.inspectAnswer(rewritten.answer(), context);
+            if (!output.allowed()) {
+                return Turn.of(blockAndSave(session, user, plan, question, output.reason(), output.userMessage(),
+                        inputTokens, outputTokens));
+            }
+            parsed = rewritten;
+            response = new LlmClient.LlmResponse(retry.text(), inputTokens, outputTokens);
         }
 
         saveTurn(session, question, parsed.answer(), false, null,

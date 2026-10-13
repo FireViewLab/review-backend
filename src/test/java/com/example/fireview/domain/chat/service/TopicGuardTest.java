@@ -102,6 +102,25 @@ class TopicGuardTest {
         }
 
         @Test
+        void 척도_표현의_0과_100은_점수로_보지_않는다() {
+            // #219: "100점 만점에", "0~100 사이" 가 근거 없는 점수로 막혔다
+            assertThat(guard.inspectAnswer("RTI 점수는 100점 만점에 72.4점입니다.", context).allowed()).isTrue();
+            assertThat(guard.inspectAnswer("RTI는 0~100 사이 점수로, 이 상품은 72.4점입니다.", context).allowed()).isTrue();
+            assertThat(guard.inspectAnswer("RTI는 0에서 100 사이예요.", context).allowed()).isTrue();
+        }
+
+        @Test
+        void 척도가_아닌_100점은_여전히_차단한다() {
+            assertThat(guard.inspectAnswer("이 상품의 RTI는 100점입니다.", context).allowed()).isFalse();
+        }
+
+        @Test
+        void 문제가_된_수치를_알려준다() {
+            assertThat(guard.findUngroundedScore("신뢰도는 98점입니다.", context)).contains(98.0);
+            assertThat(guard.findUngroundedScore("평균 RTI는 72.4점", context)).isEmpty();
+        }
+
+        @Test
         void 기준값_근처라도_다른_수치는_차단한다() {
             assertThat(guard.inspectAnswer("이 상품의 RTI는 65점입니다.", context).allowed()).isFalse();
         }

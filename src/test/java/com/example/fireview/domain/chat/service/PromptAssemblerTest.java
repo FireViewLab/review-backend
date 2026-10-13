@@ -107,4 +107,11 @@ class PromptAssemblerTest {
                 java.util.List.of(), java.util.List.of(), java.util.List.of(), java.util.List.of(),
                 5305, sampled, collected);
     }
+
+    @Test
+    void 다시_작성_요청에_문제_수치를_적는다() {
+        assertThat(assembler.rewriteRequest("원래 메시지", 98.0))
+                .startsWith("원래 메시지").contains("점수 98 ").contains("응답 형식은 처음 지시와 같게");
+        assertThat(assembler.rewriteRequest("m", 94.52)).contains("점수 94.52 ");
+    }
 }
