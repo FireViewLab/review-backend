@@ -62,6 +62,8 @@ public class PromptAssembler {
             5. 너는 AI이고 분석 결과는 추정치임을 필요할 때 언급해라.
             6. 대표리뷰의 RTI와 등급은 그 리뷰 한 건의 값이다. 상품 전체의 점수나 등급처럼 말하지 마라.
                <분석_데이터>에 평균RTI나 신뢰등급이 없으면 상품 단위 등급은 아직 없다고 답해라.
+            7. 분석리뷰수는 분석에 실제로 넣은 리뷰 수이고, 쇼핑몰전체리뷰수는 쇼핑몰이 표시하는 리뷰 수다.
+               둘을 섞어 말하지 마라. 분석에 쓴 리뷰가 몇 건인지는 분석리뷰수로만 답해라.
 
             [본문 서식]
             답변 본문은 채팅 말풍선에 글자 그대로 표시된다. 마크다운이 적용되지 않으므로
@@ -132,6 +134,7 @@ public class PromptAssembler {
         if (context.price() != null) payload.put("가격", context.price());
         if (context.category() != null) payload.put("카테고리", context.category());
         payload.put("분석리뷰수", context.totalReviews());
+        if (context.mallReviewCount() != null) payload.put("쇼핑몰전체리뷰수", context.mallReviewCount());
 
         if (context.isSampleTooSmall()) {
             // 표본이 적으면 등급을 아예 싣지 않는다. 모델이 등급을 단정할 여지를 없앤다.

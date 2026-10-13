@@ -15,11 +15,13 @@ import java.util.List;
  * @param category      카테고리 경로 (예: "패션 > 상의 > 니트")
  * @param averageRti    상품 평균 RTI (0~100). 모르면 null
  * @param trustGrade    신뢰 등급 (안전/주의/위험). 모르면 null
- * @param totalReviews  분석 대상 리뷰 총 건수
+ * @param totalReviews  분석에 넣은 리뷰 건수. 분석 전이면 알고 있는 리뷰 수로 대신한다
  * @param pros          자주 언급된 장점
  * @param cons          자주 언급된 단점
  * @param trustSignals  주요 판단 신호 (예: "짧은 호평이 같은 날짜에 몰림")
  * @param sampleReviews 근거용 대표 리뷰 (3~5건 권장)
+ * @param mallReviewCount 쇼핑몰이 표시하는 전체 리뷰 수. 모르면 null.
+ *                        분석 리뷰 수와 다를 수 있어 따로 싣는다
  */
 public record ProductAnalysisContext(
         String productId,
@@ -32,8 +34,18 @@ public record ProductAnalysisContext(
         List<String> pros,
         List<String> cons,
         List<String> trustSignals,
-        List<SampleReview> sampleReviews
+        List<SampleReview> sampleReviews,
+        Integer mallReviewCount
 ) {
+
+    /** 쇼핑몰 전체 리뷰 수를 모를 때 */
+    public ProductAnalysisContext(String productId, String productName, Integer price, String category,
+                                  Double averageRti, String trustGrade, int totalReviews,
+                                  List<String> pros, List<String> cons, List<String> trustSignals,
+                                  List<SampleReview> sampleReviews) {
+        this(productId, productName, price, category, averageRti, trustGrade, totalReviews,
+                pros, cons, trustSignals, sampleReviews, null);
+    }
 
     /**
      * 대표 리뷰 한 건.
