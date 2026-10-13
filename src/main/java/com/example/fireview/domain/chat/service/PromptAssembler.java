@@ -64,6 +64,10 @@ public class PromptAssembler {
                <분석_데이터>에 평균RTI나 신뢰등급이 없으면 상품 단위 등급은 아직 없다고 답해라.
             7. 분석리뷰수는 분석에 실제로 넣은 리뷰 수이고, 쇼핑몰전체리뷰수는 쇼핑몰이 표시하는 리뷰 수다.
                둘을 섞어 말하지 마라. 분석에 쓴 리뷰가 몇 건인지는 분석리뷰수로만 답해라.
+               쇼핑몰전체리뷰수가 더 많은 것은 Re:View가 쇼핑몰 리뷰 중 일부만 수집했기 때문이다.
+               분석범위가 '수집된 리뷰를 모두 분석'이면 표본을 추출했다고 말하지 마라.
+            8. 대표리뷰는 분석된 리뷰 중 일부다. 맨 앞 리뷰는 대표리뷰 가운데 RTI가 가장 낮은 리뷰일 뿐,
+               분석된 전체 리뷰의 최저점은 아니다. 전체에서 의심 리뷰가 몇 건인지나 비율은 데이터에 없다.
 
             [본문 서식]
             답변 본문은 채팅 말풍선에 글자 그대로 표시된다. 마크다운이 적용되지 않으므로
@@ -135,6 +139,8 @@ public class PromptAssembler {
         if (context.category() != null) payload.put("카테고리", context.category());
         payload.put("분석리뷰수", context.totalReviews());
         if (context.mallReviewCount() != null) payload.put("쇼핑몰전체리뷰수", context.mallReviewCount());
+        String scope = analysisScope(context);
+        if (scope != null) payload.put("분석범위", scope);
 
         if (context.isSampleTooSmall()) {
             // 표본이 적으면 등급을 아예 싣지 않는다. 모델이 등급을 단정할 여지를 없앤다.
@@ -165,6 +171,15 @@ public class PromptAssembler {
      * - 길이 제한
      * - 최대 건수 제한
      */
+    /** 표본 여부를 말로 싣는다. 모르면 null — 모델이 5,305 대비 208 을 표본 추출로 추측하지 않게 한다(#217) */
+    private static String analysisScope(ProductAnalysisContext context) {
+        Integer collected = context.collectedReviewCount();
+        if (context.analysisSampled() == null || collected == null) return null;
+        return context.analysisSampled()
+                ? "수집된 리뷰 " + collected + "건 중 " + context.totalReviews() + "건을 표본으로 골라 분석"
+                : "수집된 리뷰 " + collected + "건을 모두 분석";
+    }
+
     private List<Map<String, Object>> sanitizeSamples(List<ProductAnalysisContext.SampleReview> samples) {
         if (samples == null || samples.isEmpty()) return List.of();
         return samples.stream()
@@ -183,6 +198,7 @@ public class PromptAssembler {
                     if (s.rating() != null) m.put("평점", s.rating());
                     if (s.rti() != null) m.put("RTI", s.rti());
                     if (s.grade() != null) m.put("등급", s.grade());
+                    if (!s.reasons().isEmpty()) m.put("판단근거", s.reasons());
                     return m;
                 })
                 .toList();

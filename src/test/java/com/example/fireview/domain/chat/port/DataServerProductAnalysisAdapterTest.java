@@ -8,6 +8,7 @@ import com.example.fireview.domain.dataserver.dto.DataServerJob;
 import com.example.fireview.domain.dataserver.dto.DataServerProduct;
 import com.example.fireview.domain.dataserver.dto.DataServerProductResponse;
 import com.example.fireview.domain.dataserver.dto.DataServerReview;
+import com.example.fireview.domain.dataserver.dto.DataServerReviewAnalysis;
 import com.example.fireview.domain.dataserver.dto.response.AnalysisStatus;
 import com.example.fireview.domain.product.entity.Product;
 import com.example.fireview.domain.product.repository.ProductRepository;
@@ -24,6 +25,7 @@ import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -216,8 +218,9 @@ class DataServerProductAnalysisAdapterTest {
 
         ProductAnalysisContext ctx = adapter.findContext("kurly-1").orElseThrow();
 
+        // 최저 RTI(c, 20) 가 맨 앞, 나머지는 받은 순서
         assertThat(ctx.sampleReviews()).extracting(ProductAnalysisContext.SampleReview::grade)
-                .containsExactly("안전", "주의", "위험", null);
+                .containsExactly("위험", "안전", "주의", null);
     }
 
     private static List<DataServerReview> page(int size) {
@@ -323,5 +326,93 @@ class DataServerProductAnalysisAdapterTest {
         assertThat(ctx.averageRti()).isEqualTo(72.0);
         // 번호표 생성 때 채워진 0 은 '모름'이다
         assertThat(ctx.mallReviewCount()).isNull();
+    }
+
+    // ── #217: 화면과 같은 값 ─────────────────────────────────────────────
+
+    private static DataServerReview review(String id, String content) {
+        return new DataServerReview(id, content, 5.0, "user**",
+                "2026-10-01T10:00:00+09:00", null, List.of(), 0);
+    }
+
+    private static DataServerReviewAnalysis scored(String id, double rti, String... reasons) {
+        return new DataServerReviewAnalysis(id, rti, rti >= 70 ? "safe" : rti >= 40 ? "warn" : "danger",
+                rti, null, null, List.of(reasons));
+    }
+
+    private static DataServerProductResponse pageOf(List<DataServerReview> reviews, String next,
+                                                    String status, List<DataServerReviewAnalysis> results) {
+        return new DataServerProductResponse("fresh", product(null),
+                new DataServerProductResponse.Reviews(reviews, next), null,
+                new DataServerAnalysis(status, null, "hash", "model", "rti-v0.1", 208, false, 208, results));
+    }
+
+    @Test
+    void 평균_RTI는_화면처럼_소수_첫째_자리로_싣는다() {
+        when(dataServerClient.findProduct(any()))
+                .thenReturn(Optional.of(withAnalysis(product(null), page(3), analysis("done", 208))));
+        savedAs(saved(AnalysisStatus.DONE, 95.52, 208, 5305));
+
+        assertThat(adapter.findContext(EXTERNAL_ID).orElseThrow().averageRti()).isEqualTo(95.5);
+    }
+
+    @Test
+    void 분석_범위를_싣는다() {
+        when(dataServerClient.findProduct(any()))
+                .thenReturn(Optional.of(withAnalysis(product(null), page(3), analysis("done", 208))));
+
+        ProductAnalysisContext ctx = adapter.findContext(EXTERNAL_ID).orElseThrow();
+
+        assertThat(ctx.analysisSampled()).isFalse();
+        assertThat(ctx.collectedReviewCount()).isEqualTo(208);
+    }
+
+    @Test
+    void 점수_있는_리뷰를_먼저_싣고_그중_최저점을_맨_앞에_둔다() {
+        when(dataServerClient.findProduct(any())).thenReturn(Optional.of(pageOf(
+                List.of(review("n1", "새 리뷰1"), review("n2", "새 리뷰2"),
+                        review("a", "구 리뷰A"), review("b", "구 리뷰B"), review("c", "구 리뷰C")),
+                null, "done", List.of(scored("a", 95), scored("b", 90), scored("c", 96)))));
+
+        assertThat(adapter.findContext(EXTERNAL_ID).orElseThrow().sampleReviews())
+                .extracting(ProductAnalysisContext.SampleReview::content)
+                .containsExactly("구 리뷰B", "구 리뷰A", "구 리뷰C", "새 리뷰1", "새 리뷰2");
+    }
+
+    @Test
+    void 첫_페이지에_점수가_없으면_다음_페이지를_더_받는다() {
+        // 최신 리뷰는 분석 뒤에 올라와 점수가 없다. 그대로 두면 대표 리뷰에 RTI 가 하나도 없다
+        when(dataServerClient.findProduct(any())).thenReturn(Optional.of(pageOf(
+                List.of(review("n1", "새 리뷰1"), review("n2", "새 리뷰2")), "c1", "done", List.of())));
+        when(dataServerClient.findProduct(any(DataServerProductKey.class), eq("c1"))).thenReturn(Optional.of(pageOf(
+                List.of(review("a", "구 리뷰A"), review("b", "구 리뷰B"), review("c", "구 리뷰C")), "c2", "done",
+                List.of(scored("a", 95), scored("b", 90), scored("c", 96)))));
+
+        ProductAnalysisContext ctx = adapter.findContext(EXTERNAL_ID).orElseThrow();
+
+        assertThat(ctx.sampleReviews().get(0).rti()).isEqualTo(90.0);
+        assertThat(ctx.knownRtiValues()).contains(90.0, 95.0, 96.0);
+        // 점수 있는 리뷰가 충분히 모였으니 더 받지 않는다
+        verify(dataServerClient, never()).findProduct(any(DataServerProductKey.class), eq("c2"));
+    }
+
+    @Test
+    void 분석이_끝나지_않았으면_다음_페이지를_받지_않는다() {
+        when(dataServerClient.findProduct(any())).thenReturn(Optional.of(pageOf(
+                List.of(review("n1", "새 리뷰1")), "c1", "running", List.of())));
+
+        adapter.findContext(EXTERNAL_ID).orElseThrow();
+
+        verify(dataServerClient, never()).findProduct(any(DataServerProductKey.class), any());
+    }
+
+    @Test
+    void 판단_근거는_화면_라벨로_싣고_모르는_코드는_뺀다() {
+        when(dataServerClient.findProduct(any())).thenReturn(Optional.of(pageOf(
+                List.of(review("a", "좋아요 좋아요!!")), null, "done",
+                List.of(scored("a", 90, "TEXT_REPETITIVE_KEYWORD", "SOMETHING_NEW", "EXCESSIVE_EXCLAMATION")))));
+
+        assertThat(adapter.findContext(EXTERNAL_ID).orElseThrow().sampleReviews().get(0).reasons())
+                .containsExactly("반복 표현", "잦은 느낌표");
     }
 }
