@@ -187,6 +187,7 @@ notifications: 테이블 생성됨 (데이터 없음)
 
 기존 운영 시드 사용자 계정 정리는 `docs/sql/remove-seed-user-account.sql`을 검토 후 수동으로 진행한다.
 더미 상품·리뷰 정리는 `docs/sql/remove-dummy-products.sql`을 백업 후 검토하여 수동으로 진행한다(#195). 더미에 붙은 사용자 찜·장바구니·신고·피드백도 함께 지워진다. 실행 후에는 위 products·reviews 서술을 갱신한다.
+enum 칼럼의 Hibernate CHECK 제약 정리는 `docs/sql/drop-enum-check-constraints.sql`로 한다. enum 에 값을 더하는 배포 전에 실행한다(#205 와 같은 저장 거부 방지).
 
 ### DB 전체 초기화가 필요할 때 순서
 ```bash

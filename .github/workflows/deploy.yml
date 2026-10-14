@@ -5,6 +5,12 @@ on:
     branches: [ main ]
   workflow_dispatch:   # GitHub Actions 탭에서 수동 실행도 가능
 
+# 머지가 연달아 들어오면 두 배포가 같은 EC2 에서 git reset · docker build · 컨테이너 교체를 겹쳐 돈다.
+# 한 번에 하나만 돌리고, 대기 중인 배포는 취소하지 않는다(나중 실행이 최신 main 을 받는다).
+concurrency:
+  group: deploy-ec2
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
