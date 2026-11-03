@@ -15,6 +15,7 @@ import com.example.fireview.domain.user.entity.User;
 import com.example.fireview.domain.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +27,8 @@ import java.util.Set;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class DashboardService {
+
+    private static final Limit RECOMMEND_LIMIT = Limit.of(10);
 
     private final ProductRepository productRepository;
     private final ViewHistoryRepository viewHistoryRepository;
@@ -39,7 +42,7 @@ public class DashboardService {
      */
     public DashboardResponse getPublicDashboard() {
         return new DashboardResponse(
-                productRepository.findTop10ByOrderByAvgRtiDesc()
+                productRepository.findRecommendedProducts(RECOMMEND_LIMIT)
                         .stream().map(ProductResponse::from).toList(),
                 List.of(),
                 getRiskyProducts(),
@@ -112,7 +115,7 @@ public class DashboardService {
                         .toList();
             }
         }
-        return productRepository.findTop10ByOrderByAvgRtiDesc()
+        return productRepository.findRecommendedProducts(RECOMMEND_LIMIT)
                 .stream().map(ProductResponse::from).toList();
     }
 
