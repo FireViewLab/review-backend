@@ -16,7 +16,16 @@ import java.util.Optional;
 public interface ProductRepository extends JpaRepository<Product, Long> {
     List<Product> findByCategory(Category category);
     List<Product> findByCategoryIn(List<Category> categories);
-    List<Product> findTop10ByOrderByAvgRtiDesc();
+    /**
+     * 대시보드 추천. 분석된 상품을 RTI 높은 순으로 먼저, 모자라면 분석 전 상품으로 채운다.
+     * PostgreSQL 은 DESC 에서 NULL 을 앞에 두므로 NULL 을 뒤로 보내는 정렬을 명시한다(#224).
+     * NULLS LAST 는 Hibernate 가 방언 기본 순서와 같다고 보면 SQL 에서 빼 버려 CASE 로 쓴다.
+     */
+    @Query("""
+            SELECT p FROM Product p
+            ORDER BY CASE WHEN p.avgRti IS NULL THEN 1 ELSE 0 END, p.avgRti DESC, p.id DESC
+            """)
+    List<Product> findRecommendedProducts(Limit limit);
     List<Product> findByAvgRtiLessThanOrderByAvgRtiAsc(double threshold);
     // platformLinks를 JOIN FETCH로 한 번에 로딩 → LazyInitializationException 방지
     @Query("SELECT DISTINCT p FROM Product p LEFT JOIN FETCH p.platformLinks WHERE LOWER(p.name) LIKE LOWER(CONCAT('%', :keyword, '%'))")
