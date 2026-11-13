@@ -37,17 +37,19 @@ public class RedisPasswordResetTokenStore extends PasswordResetTokenStore {
         return token;
     }
 
+    /**
+     * 읽기와 삭제를 GETDEL 한 번으로 한다(#233). GET 뒤에 DELETE 를 따로 부르면 그 사이에 들어온
+     * 같은 토큰 요청도 이메일을 받아 1회용 토큰이 두 번 쓰인다. GETDEL 은 Redis 6.2 이상이 필요하다.
+     */
     @Override
     public String consume(String token) {
-        String key = KEY_PREFIX + token;
-        String email = redisTemplate.opsForValue().get(key);
+        String email = redisTemplate.opsForValue().getAndDelete(KEY_PREFIX + token);
 
         if (email == null) {
             log.warn("[PasswordReset:Redis] 존재하지 않거나 만료된 토큰 사용 시도");
             throw new CustomException(ErrorCode.INVALID_RESET_TOKEN);
         }
 
-        redisTemplate.delete(key); // 1회용 소비
         log.info("[PasswordReset:Redis] 토큰 소비 완료: email={}", email);
         return email;
     }
