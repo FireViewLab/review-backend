@@ -2,6 +2,7 @@ package com.example.fireview.domain.chat.service;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
@@ -10,6 +11,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -21,6 +23,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * Redis 사용량 카운터가 INCR 결과로 한도를 판단하고 날짜별 키에 자정 만료를 거는지 본다.
+ * Redis 에 닿지 못하면 챗봇을 막지 않고 한도 검사를 건너뛴다(#240).
  */
 class RedisChatQuotaStoreTest {
 
@@ -95,6 +98,27 @@ class RedisChatQuotaStoreTest {
         store.refund(7L);
 
         verify(ops).set(eq(key), eq("0"), any(Duration.class));
+    }
+
+    @Test
+    void Redis_연결이_끊기면_한도_검사를_건너뛰고_통과시킨다() {
+        when(ops.increment(key)).thenThrow(new RedisConnectionFailureException("down"));
+
+        assertThat(store.tryConsume(7L, 5)).isTrue();
+    }
+
+    @Test
+    void Redis_연결이_끊기면_사용량은_0() {
+        when(ops.get(key)).thenThrow(new RedisConnectionFailureException("down"));
+
+        assertThat(store.used(7L)).isZero();
+    }
+
+    @Test
+    void Redis_연결이_끊겨도_환불은_예외를_던지지_않는다() {
+        when(ops.decrement(key)).thenThrow(new RedisConnectionFailureException("down"));
+
+        assertThatCode(() -> store.refund(7L)).doesNotThrowAnyException();
     }
 
     @Test

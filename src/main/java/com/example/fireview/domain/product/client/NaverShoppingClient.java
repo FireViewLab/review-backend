@@ -86,7 +86,7 @@ public class NaverShoppingClient {
      */
     private List<NaverShoppingItem> fetchPage(String keyword, int display, int start) {
         try {
-            String url = UriComponentsBuilder.fromHttpUrl(SEARCH_URL)
+            String url = UriComponentsBuilder.fromUriString(SEARCH_URL)
                     .queryParam("query", keyword)
                     .queryParam("display", display)
                     .queryParam("start", start)

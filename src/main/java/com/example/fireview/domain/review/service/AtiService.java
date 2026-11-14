@@ -57,12 +57,17 @@ public class AtiService {
     /**
      * 특정 상품의 모든 리뷰어 ATI를 한 번에 조회 (N+1 방지)
      *
+     * 작성자가 없거나 평균 RTI 가 null(그 작성자 리뷰의 rti_score 가 전부 null)인 행은 뺀다(#240).
+     * 그대로 두면 toMap 언박싱에서 NPE 가 나 리뷰 목록 조회 전체가 실패한다.
+     * 빠진 작성자는 호출부에서 기본값(50.0)으로 채운다.
+     *
      * @param productId 상품 ID
      * @return reviewerId → ATI 점수 맵
      */
     public Map<String, Double> calculateAtiMapByProduct(Long productId) {
         return reviewRepository.findReviewerAtiByProductId(productId)
                 .stream()
+                .filter(proj -> proj.getReviewerId() != null && proj.getAvgRti() != null)
                 .collect(Collectors.toMap(
                         ReviewRepository.ReviewerAtiProjection::getReviewerId,
                         proj -> Math.round(proj.getAvgRti() * 10.0) / 10.0
