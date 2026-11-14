@@ -1,1 +1,7 @@
+plugins {
+    // 로컬에 JDK 17 이 없으면 Gradle 이 toolchain 을 내려받게 한다.
+    // 클라우드 실행 환경처럼 JDK 21 만 있는 곳에서도 빌드·테스트가 돈다. CI·Docker 는 이미 17 이라 영향 없다
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}
+
 rootProject.name = 'FireView'
