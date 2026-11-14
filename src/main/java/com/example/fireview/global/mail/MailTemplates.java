@@ -1,8 +1,13 @@
 package com.example.fireview.global.mail;
 
+import static org.springframework.web.util.HtmlUtils.htmlEscape;
+
 /**
  * 이메일 본문 템플릿 모음.
  * HTML 문자열을 반환하는 정적 팩토리 메서드로 구성된다.
+ *
+ * 끼워 넣는 값은 모두 HTML 이스케이프한다(#235). 관리자 코멘트처럼 사람이 쓴 문자열에
+ * 태그가 들어 있으면 메일 본문 구조가 깨지거나 엉뚱한 링크가 들어간다.
  */
 public final class MailTemplates {
 
@@ -41,7 +46,7 @@ public final class MailTemplates {
                   </div>
                 </body>
                 </html>
-                """.formatted(resetUrl);
+                """.formatted(htmlEscape(resetUrl));
     }
 
     /**
@@ -74,11 +79,11 @@ public final class MailTemplates {
                 </body>
                 </html>
                 """.formatted(
-                status,
+                htmlEscape(status),
                 detail != null && !detail.isBlank()
-                        ? "<p style=\"color:#555;\"><strong>관리자 코멘트:</strong> " + detail + "</p>"
+                        ? "<p style=\"color:#555;\"><strong>관리자 코멘트:</strong> " + htmlEscape(detail) + "</p>"
                         : "",
-                myPageUrl
+                htmlEscape(myPageUrl)
         );
     }
 }
