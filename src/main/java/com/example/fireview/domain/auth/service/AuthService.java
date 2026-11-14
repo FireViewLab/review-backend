@@ -103,7 +103,7 @@ public class AuthService {
         String resetUrl = passwordResetBaseUrl + "?token=" + token;
         emailService.sendHtml(
                 email,
-                "[Beens] 비밀번호 재설정 안내",
+                "[Re:view] 비밀번호 재설정 안내",
                 MailTemplates.passwordReset(resetUrl)
         );
     }
