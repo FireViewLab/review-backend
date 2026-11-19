@@ -3,6 +3,7 @@ package com.example.fireview.domain.product.repository;
 import com.example.fireview.domain.product.entity.Category;
 import com.example.fireview.domain.product.entity.Product;
 import org.springframework.data.domain.Limit;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -10,6 +11,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -94,6 +96,29 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
                 p.createdAt DESC, p.id DESC
             """)
     List<Product> findHomeCatalogCandidates(Pageable pageable);
+
+    /**
+     * 카테고리 화면 목록(#248). Data 서버 상품만, 홈과 같은 순서(분석 완료 먼저, 최근 순)로 한 페이지씩.
+     * 분류하지 못한 상품(category null)은 어느 카테고리에도 들지 않는다.
+     */
+    @Query(value = """
+            SELECT p FROM Product p WHERE p.dataPlatform IS NOT NULL AND p.category IN :categories
+            ORDER BY CASE WHEN p.analysisStatus = 'DONE' THEN 0 ELSE 1 END,
+                p.createdAt DESC, p.id DESC
+            """,
+            countQuery = """
+            SELECT COUNT(p) FROM Product p WHERE p.dataPlatform IS NOT NULL AND p.category IN :categories
+            """)
+    Page<Product> findCatalogByCategoryIn(@Param("categories") Collection<Category> categories, Pageable pageable);
+
+    /** 카테고리를 고르지 않은 전체 목록. 순서는 {@link #findCatalogByCategoryIn} 과 같다 */
+    @Query(value = """
+            SELECT p FROM Product p WHERE p.dataPlatform IS NOT NULL
+            ORDER BY CASE WHEN p.analysisStatus = 'DONE' THEN 0 ELSE 1 END,
+                p.createdAt DESC, p.id DESC
+            """,
+            countQuery = "SELECT COUNT(p) FROM Product p WHERE p.dataPlatform IS NOT NULL")
+    Page<Product> findCatalog(Pageable pageable);
 
     /**
      * 챗봇 추천 후보. 같은 카테고리의 Data 서버 상품 중 가격이 범위 안인 것을 리뷰 많은 순으로.
