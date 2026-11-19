@@ -3,6 +3,7 @@ package com.example.fireview.domain.product.controller;
 import com.example.fireview.domain.dashboard.service.DashboardService;
 import com.example.fireview.domain.product.cache.NaverProductCache;
 import com.example.fireview.domain.dataserver.service.DataProductCatalogService;
+import com.example.fireview.domain.product.dto.ProductPageResponse;
 import com.example.fireview.domain.product.dto.ProductResponse;
 import com.example.fireview.domain.product.service.ProductService;
 import com.example.fireview.domain.review.dto.ReviewResponse;
@@ -45,6 +46,22 @@ public class ProductController {
             return ApiResponse.success(naverSearchService.search(keyword, 100).products());
         }
         return ApiResponse.success(productService.getAllProducts());
+    }
+
+    /**
+     * 카테고리 화면 목록(#248). 기존 {@code GET /api/products} 는 홈용 100건 배열을 그대로 둔다 —
+     * 응답을 페이지 객체로 바꾸면 배포된 홈 화면이 깨진다.
+     *
+     * @param category 대분류 또는 세부 분류 enum 이름. 비우면 전체
+     * @param page     0부터 센 페이지 번호
+     * @param size     페이지 크기 (1~100)
+     */
+    @GetMapping("/catalog")
+    public ApiResponse<ProductPageResponse> getCatalogPage(
+            @RequestParam(required = false) String category,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.success(productService.getCatalogPage(category, page, size));
     }
 
     @GetMapping("/{id}")
