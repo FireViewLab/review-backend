@@ -1,7 +1,9 @@
 package com.example.fireview.domain.product.service;
 
+import com.example.fireview.domain.product.dto.ProductPageResponse;
 import com.example.fireview.domain.product.dto.ProductResponse;
 import com.example.fireview.domain.product.entity.Category;
+import com.example.fireview.domain.product.entity.MajorCategory;
 import com.example.fireview.domain.product.entity.Product;
 import com.example.fireview.domain.product.repository.ProductRepository;
 import com.example.fireview.global.exception.CustomException;
@@ -9,16 +11,19 @@ import com.example.fireview.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 @Slf4j
@@ -65,6 +70,42 @@ public class ProductService {
     }
 
     private static final int HOME_SIZE = 100;
+
+    /** 카테고리 화면 한 페이지의 최대 크기. 홈 목록 크기와 맞춘다 */
+    static final int MAX_PAGE_SIZE = HOME_SIZE;
+
+    /**
+     * 카테고리 화면 목록(#248). Data 서버 상품만 페이지로 나눠 돌려준다.
+     *
+     * <p>{@code category} 는 대분류({@link MajorCategory}) 또는 세부 분류({@link Category}) enum 이름이다.
+     * 대분류면 그 아래 세부 분류를 모두 포함한다. 비우면 전체다. 대소문자는 가리지 않는다.
+     * 홈 목록과 달리 더미로 채우지 않는다 — 카테고리 화면은 실제 상품만 센다.
+     *
+     * @throws CustomException 모르는 카테고리이거나 page·size 가 범위를 벗어나면 {@code INVALID_INPUT}
+     */
+    public ProductPageResponse getCatalogPage(String category, int page, int size) {
+        if (page < 0 || size < 1 || size > MAX_PAGE_SIZE) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        PageRequest pageable = PageRequest.of(page, size);
+        Page<Product> found = category == null || category.isBlank()
+                ? productRepository.findCatalog(pageable)
+                : productRepository.findCatalogByCategoryIn(categoriesOf(category.strip()), pageable);
+        return ProductPageResponse.from(found.map(ProductResponse::from));
+    }
+
+    static List<Category> categoriesOf(String name) {
+        String upper = name.toUpperCase(Locale.ROOT);
+        for (MajorCategory major : MajorCategory.values()) {
+            if (major.name().equals(upper)) {
+                return Arrays.stream(Category.values()).filter(c -> c.getMajor() == major).toList();
+            }
+        }
+        for (Category c : Category.values()) {
+            if (c.name().equals(upper)) return List.of(c);
+        }
+        throw new CustomException(ErrorCode.INVALID_INPUT);
+    }
 
     /**
      * 대분류별로 묶어 한 개씩 번갈아 꺼낸다. 묶음 순서와 묶음 안 순서는 입력(최근 순)을 따른다.
