@@ -287,4 +287,16 @@ class DataProductServiceAnalysisTest {
         assertThat(res.analysisStatus()).isEqualTo(AnalysisStatus.UNAVAILABLE);
         verify(registry, never()).recordAnalysisStatus(any(), any());
     }
+
+    @Test
+    void v2_결과는_계약_버전과_정책_지수를_내려준다() {
+        // #250: 프론트가 지금처럼 rti·level·reasons 만 읽어도 v2 상품이 비어 보이지 않는다
+        DataProductResponse res = callWith("product-analysis-v2-done.json");
+
+        assertThat(res.analysis().contractVersion()).isEqualTo("v2");
+        DataReview r1 = review(res, "r-1");
+        assertThat(r1.rti()).isEqualTo(80.4);
+        assertThat(r1.level()).isEqualTo("safe");
+        assertThat(r1.reasons()).containsExactly("구체적인 사용 경험이 담겨 있어 신뢰할 만한 리뷰입니다.");
+    }
 }

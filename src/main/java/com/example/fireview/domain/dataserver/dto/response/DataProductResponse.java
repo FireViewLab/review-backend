@@ -69,6 +69,9 @@ public record DataProductResponse(
      * @param sampled           표본으로 일부만 분석했으면 true, 전수 분석이면 false.
      *                          구버전 Data 서버라 모르면 null
      * @param sourceReviewCount Data 서버가 가진 원본 리뷰 수. 구버전 Data 서버라 모르면 null
+     * @param contractVersion   결과를 받은 AI 계약 {@code v0.5}/{@code v2}. {@code v2} 면 리뷰의
+     *                          {@code rti} 는 RTI 가 아니라 정책 지수(0~100)이고 {@code reasons} 는
+     *                          한국어 설명 문장이다. 구버전 Data 서버라 모르면 null
      */
     public record ProductAnalysis(
             AnalysisStatus status,
@@ -76,7 +79,8 @@ public record DataProductResponse(
             String policyVersion,
             Integer reviewCount,
             Boolean sampled,
-            Integer sourceReviewCount
+            Integer sourceReviewCount,
+            String contractVersion
     ) {}
 
     /**
@@ -107,10 +111,11 @@ public record DataProductResponse(
 
     /**
      * @param rating  5점 만점 환산. 소수점이 올 수 있다 (예: 4.5)
-     * @param rti     이 리뷰의 RTI (0~100). 분석 결과가 없거나 계산 불가면 null. 0 으로 채우지 않는다
-     * @param level   이 리뷰의 등급. Data 서버 값 그대로 {@code safe}/{@code warn}/{@code danger}.
+     * @param rti     이 리뷰의 RTI (0~100). v2 계약이면 정책 지수. 분석 결과가 없거나 계산 불가면 null.
+     *                0 으로 채우지 않는다
+     * @param level   이 리뷰의 등급 {@code safe}/{@code warn}/{@code danger}. v2 의 대문자 등급도 소문자로 맞춘다.
      *                결과가 없거나 계산 불가면 null
-     * @param reasons 판단 근거. 결과가 없으면 빈 배열
+     * @param reasons 판단 근거. v2 계약이면 한국어 설명 문장. 결과가 없으면 빈 배열
      */
     public record DataReview(
             String reviewId,
