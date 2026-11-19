@@ -9,6 +9,7 @@ import com.example.fireview.domain.dataserver.dto.response.AnalysisStatus;
 import com.example.fireview.domain.dataserver.dto.response.CollectionStatus;
 import com.example.fireview.domain.dataserver.dto.response.DataProductResponse;
 import com.example.fireview.domain.dataserver.dto.response.DataProductResponse.DataReview;
+import com.example.fireview.domain.product.entity.Product;
 import com.example.fireview.domain.product.repository.ProductRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -315,5 +316,35 @@ class DataProductServiceAnalysisTest {
 
         assertThat(res.product().description()).isNull();
         assertThat(res.product().detailImages()).isEmpty();
+    }
+
+    @Test
+    void 번호표에_적힌_상품_평균과_등급을_내려준다() {
+        // #249: 리뷰 한 페이지로 평균을 내지 않고, 카탈로그 동기화가 적어 둔 상품 전체 평균을 쓴다
+        when(dataServerClient.findProduct(any(), any()))
+                .thenReturn(Optional.of(DataServerFixtures.load("product-analysis-v2-done.json")));
+        when(registry.find(any())).thenReturn(Optional.of(Product.builder().id(42L).name("샘플 상품").avgRti(72.5).build()));
+
+        DataProductResponse res = service.getProduct("kurly", "1000146248", null);
+
+        assertThat(res.analysis().avgRti()).isEqualTo(72.5);
+        assertThat(res.analysis().level()).isEqualTo("safe");
+    }
+
+    @Test
+    void 번호표가_없으면_상품_평균과_등급은_null이다() {
+        DataProductResponse res = callWith("product-analysis-v2-done.json");
+
+        assertThat(res.analysis().avgRti()).isNull();
+        assertThat(res.analysis().level()).isNull();
+    }
+
+    @Test
+    void 상품_등급은_목록과_같은_70과_40을_경계로_나눈다() {
+        assertThat(DataProductResponse.ProductAnalysis.levelOf(70.0)).isEqualTo("safe");
+        assertThat(DataProductResponse.ProductAnalysis.levelOf(69.9)).isEqualTo("warn");
+        assertThat(DataProductResponse.ProductAnalysis.levelOf(40.0)).isEqualTo("warn");
+        assertThat(DataProductResponse.ProductAnalysis.levelOf(39.9)).isEqualTo("danger");
+        assertThat(DataProductResponse.ProductAnalysis.levelOf(null)).isNull();
     }
 }

@@ -1,5 +1,7 @@
 package com.example.fireview.domain.dataserver.dto.response;
 
+import com.example.fireview.domain.review.entity.TrustGrade;
+
 import java.util.List;
 
 /**
@@ -10,8 +12,8 @@ import java.util.List;
  *   <li>상품의 주인이 Data 서버다. Spring 은 조합만 한다</li>
  *   <li>{@code collectionStatus} 가 있다. 데이터가 없거나 오래된 상태를 숨기지 않는다</li>
  *   <li>{@code analysisStatus} 가 있다. 분석 진행 상태는 늘 여기서 본다</li>
- *   <li>{@code analysis} 는 <b>분석 결과가 있을 때만</b> 객체다. 점수는 리뷰마다 {@code reviews.items[]} 에 붙는다.
- *       상품 단위 평균 RTI·등급은 아직 없다</li>
+ *   <li>{@code analysis} 는 <b>분석 결과가 있을 때만</b> 객체다. 리뷰 점수는 {@code reviews.items[]} 에,
+ *       상품 단위 평균·등급은 {@code analysis.avgRti}·{@code analysis.level} 에 붙는다</li>
  * </ul>
  *
  * @param collectionStatus 수집 신선도. {@code QUEUED} 면 {@code product} 가 null 이다
@@ -51,8 +53,10 @@ public record DataProductResponse(
     /**
      * 분석 결과가 있는 상품의 분석 정보. 상태는 늘 {@code DONE} 이다.
      *
-     * <p>상품 평균 RTI·등급은 넣지 않는다. Data 서버가 주는 결과는 지금 리뷰 페이지 것뿐이라
-     * Spring 이 평균을 내면 20건 표본 평균이 된다. Data 서버가 전체로 계산해 줄 때 붙인다.
+     * <p>상품 평균은 이 응답의 리뷰 페이지로 계산하지 않는다. Data 서버가 주는 결과는 지금 리뷰
+     * 페이지 것뿐이라 Spring 이 평균을 내면 20건 표본 평균이 된다. 대신 카탈로그 동기화가 Data 서버의
+     * 상품 전체 평균({@code avg_rti}, v2 는 {@code avg_policy_index_v3})을 번호표에 적어 두므로 그 값을 쓴다(#249).
+     * 번호표가 없거나 아직 동기화 전이면 null 이다.
      *
      * <p><b>리뷰 수가 셋이다.</b> 서로 다른 것을 센다.
      * <ul>
@@ -72,6 +76,10 @@ public record DataProductResponse(
      * @param contractVersion   결과를 받은 AI 계약 {@code v0.5}/{@code v2}. {@code v2} 면 리뷰의
      *                          {@code rti} 는 RTI 가 아니라 정책 지수(0~100)이고 {@code reasons} 는
      *                          한국어 설명 문장이다. 구버전 Data 서버라 모르면 null
+     * @param avgRti            상품 단위 평균 점수(0~100). v2 상품은 정책 지수 평균이다.
+     *                          목록의 {@code avgRti} 와 같은 값이다. 모르면 null
+     * @param level             {@code avgRti} 의 등급 {@code safe}(≥70)/{@code warn}(≥40)/{@code danger}.
+     *                          목록의 {@code rtiLevel} 과 같다. {@code avgRti} 가 null 이면 null
      */
     public record ProductAnalysis(
             AnalysisStatus status,
@@ -80,8 +88,16 @@ public record DataProductResponse(
             Integer reviewCount,
             Boolean sampled,
             Integer sourceReviewCount,
-            String contractVersion
-    ) {}
+            String contractVersion,
+            Double avgRti,
+            String level
+    ) {
+
+        /** 목록의 {@code rtiLevel} 과 같은 기준({@link TrustGrade})으로 상품 평균의 등급을 정한다 */
+        public static String levelOf(Double score) {
+            return score == null ? null : TrustGrade.fromScore(score).toLevel();
+        }
+    }
 
     /**
      * @param externalId   {@code "{platform}-{productId}"}. 챗봇·알림처럼 식별자를 한 칸에

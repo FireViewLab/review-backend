@@ -66,8 +66,9 @@ public class DataProductService {
         // 이미 번호표가 있는 상품이면 홈·검색 목록에 보이는 표시 정보(가격·이미지 등)를
         // 지금 받은 값으로 덮는다. 목록 캐시가 오래 낡지 않게 하는 지점이다.
         // 번호표가 없으면 만들지 않는다 — 열어보기만 해도 행이 생기면 안 된다.
+        Optional<Product> ticket = registry.find(key);
         Product cached = null;
-        if (body.hasUsableData() && registry.find(key).isPresent()) {
+        if (body.hasUsableData() && ticket.isPresent()) {
             cached = registry.upsertForDisplay(body.product());
         }
         // 목록에 보일 분석 상태도 같은 이유로 번호표에 적는다. 번호표가 없으면 아무것도 하지 않는다.
@@ -81,7 +82,7 @@ public class DataProductService {
                 toReviewPage(body),
                 toJob(body.job()),
                 analysisStatus,
-                toAnalysis(analysisStatus, body.analysis()));
+                toAnalysis(analysisStatus, body.analysis(), ticket.map(Product::getAvgRti).orElse(null)));
     }
 
     /** 수집 진행 상황. QUEUED 를 받은 프론트가 이걸로 완료를 기다린다 */
@@ -147,7 +148,11 @@ public class DataProductService {
     }
 
     /** 결과가 없는 상태면 null — 프론트의 {@code analysis != null} 판정을 지킨다 */
-    private DataProductResponse.ProductAnalysis toAnalysis(AnalysisStatus status, DataServerAnalysis analysis) {
+    /**
+     * @param productAvg 카탈로그 동기화가 번호표에 적어 둔 상품 전체 평균. 번호표가 없거나 동기화 전이면 null
+     */
+    private DataProductResponse.ProductAnalysis toAnalysis(AnalysisStatus status, DataServerAnalysis analysis,
+                                                           Double productAvg) {
         if (analysis == null || !DataProductResponse.hasAnalysisResult(status)) return null;
         return new DataProductResponse.ProductAnalysis(
                 status,
@@ -156,7 +161,9 @@ public class DataProductService {
                 analysis.reviewCount(),
                 analysis.sampled(),
                 analysis.sourceReviewCount(),
-                analysis.contractVersion());
+                analysis.contractVersion(),
+                productAvg,
+                DataProductResponse.ProductAnalysis.levelOf(productAvg));
     }
 
     private DataProductResponse.ReviewPage toReviewPage(DataServerProductResponse body) {
