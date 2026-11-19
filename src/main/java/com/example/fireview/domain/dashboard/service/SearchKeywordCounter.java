@@ -1,5 +1,6 @@
 package com.example.fireview.domain.dashboard.service;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -46,6 +47,8 @@ public class SearchKeywordCounter {
 
     private final Map<LocalDate, Map<String, LongAdder>> daily = new ConcurrentHashMap<>();
 
+    /** 생성자가 둘이라 스프링이 쓸 것을 지정한다. 시계를 받는 생성자는 테스트용이다 */
+    @Autowired
     public SearchKeywordCounter(@Value("${app.search.keywords.zone:Asia/Seoul}") String zoneId) {
         this(Clock.system(ZoneId.of(zoneId)));
     }
