@@ -13,6 +13,11 @@ public record DataServerCatalogPage(
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Entry(DataServerProduct product, Analysis analysis) {}
 
+    /**
+     * @param avgRti           v0.5 리뷰 RTI 평균. v2 상품은 null 이다
+     * @param avgPolicyIndexV3 v2 정책 지수 평균. v0.5 상품은 null 이다(#250)
+     * @param contractVersion  결과를 받은 AI 계약 {@code v0.5}/{@code v2}. 분석 job 이 없으면 null
+     */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Analysis(
             String status,
@@ -23,5 +28,16 @@ public record DataServerCatalogPage(
             @JsonProperty("source_review_count") Integer sourceReviewCount,
             Boolean sampled,
             @JsonProperty("model_version") String modelVersion,
-            @JsonProperty("policy_version") String policyVersion) {}
+            @JsonProperty("policy_version") String policyVersion,
+            @JsonProperty("avg_policy_index_v3") Double avgPolicyIndexV3,
+            @JsonProperty("contract_version") String contractVersion) {
+
+        /**
+         * 상품 평균 점수. v2 정책 지수 평균이 있으면 그것을, 없으면 RTI 평균을 쓴다.
+         * v2 상품의 avg_rti 는 null 이라 그대로 읽으면 분석된 상품이 평균 없는 상품으로 보인다.
+         */
+        public Double avgScore() {
+            return avgPolicyIndexV3 != null ? avgPolicyIndexV3 : avgRti;
+        }
+    }
 }

@@ -188,7 +188,7 @@ public class ProductTagRegistry {
                 log.warn("[DataCatalog] 분석 범위가 잘못된 상품을 건너뛴다 - {}/{}", p.platform(), p.productId());
                 continue;
             }
-            Double avg = status == AnalysisStatus.DONE ? a.avgRti() : null;
+            Double avg = status == AnalysisStatus.DONE ? a.avgScore() : null;
             if (status == AnalysisStatus.DONE && ((avg == null && a.scoredReviewCount() != 0)
                     || (avg != null && (!Double.isFinite(avg) || avg < 0 || avg > 100 || a.scoredReviewCount() == 0)))) {
                 log.warn("[DataCatalog] 분석 평균이 잘못된 상품을 건너뛴다 - {}/{}", p.platform(), p.productId());

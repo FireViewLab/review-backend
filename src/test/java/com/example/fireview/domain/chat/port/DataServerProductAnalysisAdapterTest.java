@@ -229,7 +229,7 @@ class DataServerProductAnalysisAdapterTest {
 
     private static DataServerAnalysis analysis(String status, Integer reviewCount) {
         return new DataServerAnalysis(status, null, "hash", "model", "rti-v0.1",
-                reviewCount, false, reviewCount, List.of());
+                reviewCount, false, reviewCount, "v0.5", List.of());
     }
 
     private static DataServerProductResponse withAnalysis(DataServerProduct p, List<DataServerReview> reviews,
@@ -336,7 +336,7 @@ class DataServerProductAnalysisAdapterTest {
     }
 
     private static DataServerReviewAnalysis scored(String id, double rti, String... reasons) {
-        return new DataServerReviewAnalysis(id, rti, rti >= 70 ? "safe" : rti >= 40 ? "warn" : "danger",
+        return DataServerReviewAnalysis.v05(id, rti, rti >= 70 ? "safe" : rti >= 40 ? "warn" : "danger",
                 rti, null, null, List.of(reasons));
     }
 
@@ -344,7 +344,7 @@ class DataServerProductAnalysisAdapterTest {
                                                     String status, List<DataServerReviewAnalysis> results) {
         return new DataServerProductResponse("fresh", product(null),
                 new DataServerProductResponse.Reviews(reviews, next), null,
-                new DataServerAnalysis(status, null, "hash", "model", "rti-v0.1", 208, false, 208, results));
+                new DataServerAnalysis(status, null, "hash", "model", "rti-v0.1", 208, false, 208, "v0.5", results));
     }
 
     @Test
@@ -414,5 +414,22 @@ class DataServerProductAnalysisAdapterTest {
 
         assertThat(adapter.findContext(EXTERNAL_ID).orElseThrow().sampleReviews().get(0).reasons())
                 .containsExactly("반복 표현", "잦은 느낌표");
+    }
+
+    @Test
+    void v2_결과도_점수와_등급을_싣는다() {
+        // #250: v2 결과는 rti·level 이 비어 온다. 옮기지 않으면 챗봇이 모든 리뷰를 미분석으로 본다
+        DataServerReviewAnalysis v2 = new DataServerReviewAnalysis("a", null, null, 80.0, null, null, List.of(),
+                35.0, "DANGER", null, List.of("내용이 매우 짧습니다."), List.of("TEXT_SHORT"), "rules");
+        when(dataServerClient.findProduct(any())).thenReturn(Optional.of(new DataServerProductResponse("fresh",
+                product(null), new DataServerProductResponse.Reviews(List.of(review("a", "별로")), null), null,
+                new DataServerAnalysis("done", null, "hash", "v3.1", "policy-v3", 208, false, 208, "v2",
+                        List.of(v2)))));
+
+        ProductAnalysisContext.SampleReview sample = adapter.findContext(EXTERNAL_ID).orElseThrow()
+                .sampleReviews().get(0);
+
+        assertThat(sample.rti()).isEqualTo(35.0);
+        assertThat(sample.grade()).isEqualTo("위험");
     }
 }

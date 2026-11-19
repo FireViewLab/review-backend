@@ -32,6 +32,8 @@ import java.util.stream.Collectors;
  *                          job 이 없거나 이 필드를 모르는 구버전 Data 서버면 null
  * @param sourceReviewCount 표본을 고를 때 Data 서버가 가진 원본 리뷰 수. 쇼핑몰이 표시하는
  *                          전체 리뷰 수와는 다를 수 있다. job 이 없거나 구버전이면 null
+ * @param contractVersion   결과를 받은 AI 계약 {@code v0.5}/{@code v2}. 결과가 없거나 구버전이면 null.
+ *                          재분석 중에는 상품마다 다를 수 있다(#250)
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record DataServerAnalysis(
@@ -43,11 +45,15 @@ public record DataServerAnalysis(
         @JsonProperty("review_count") Integer reviewCount,
         Boolean sampled,
         @JsonProperty("source_review_count") Integer sourceReviewCount,
+        @JsonProperty("contract_version") String contractVersion,
         List<DataServerReviewAnalysis> results
 ) {
 
+    /** v2 결과는 여기서 기존 rti·level·reasons 자리로 옮겨 둔다. 소비하는 쪽은 계약을 몰라도 된다 */
     public DataServerAnalysis {
-        results = results == null ? List.of() : results;
+        results = results == null ? List.of() : results.stream()
+                .map(r -> r == null ? null : r.forContract(contractVersion))
+                .toList();
     }
 
     /** 분석 job. 상품 조회 응답의 수집 job 과는 다른 것이다 */

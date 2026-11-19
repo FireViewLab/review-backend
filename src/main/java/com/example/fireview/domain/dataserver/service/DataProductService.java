@@ -149,7 +149,8 @@ public class DataProductService {
                 analysis.policyVersion(),
                 analysis.reviewCount(),
                 analysis.sampled(),
-                analysis.sourceReviewCount());
+                analysis.sourceReviewCount(),
+                analysis.contractVersion());
     }
 
     private DataProductResponse.ReviewPage toReviewPage(DataServerProductResponse body) {

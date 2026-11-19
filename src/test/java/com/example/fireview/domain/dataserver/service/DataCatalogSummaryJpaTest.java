@@ -29,7 +29,15 @@ class DataCatalogSummaryJpaTest {
         var p = new DataServerProduct("kurly", "p", "상품", "https://x", null, null, null,
                 1000, "https://img", null, 2000, null, null);
         var a = new DataServerCatalogPage.Analysis(status, 1L, score, scored,
-                sampled ? 500 : 1, sampled ? 1318 : 1, sampled, "m1", "p1");
+                sampled ? 500 : 1, sampled ? 1318 : 1, sampled, "m1", "p1", null, "v0.5");
+        return new DataServerCatalogPage.Entry(p, a);
+    }
+
+    private DataServerCatalogPage.Entry v2Entry(Double avgPolicyIndex, int scored) {
+        var p = new DataServerProduct("kurly", "p", "상품", "https://x", null, null, null,
+                1000, "https://img", null, 2000, null, null);
+        var a = new DataServerCatalogPage.Analysis("done", 2L, null, scored,
+                1, 1, false, "v3.1", "policy-v3", avgPolicyIndex, "v2");
         return new DataServerCatalogPage.Entry(p, a);
     }
 
@@ -83,5 +91,19 @@ class DataCatalogSummaryJpaTest {
         registry.resolveOrCreate(new DataServerProductKey("kurly", "new"), "신규 상품");
         assertThat(products.findHomeCatalogCandidates(PageRequest.of(0, 1)))
                 .extracting(p -> p.getDataProductId()).containsExactly("p");
+    }
+
+    @Test
+    void v2_상품은_정책_지수_평균을_저장한다() {
+        // #250: v2 상품은 avg_rti 가 null 이다. 예전에는 "점수 매긴 리뷰가 있는데 평균이 없다"로 보고 건너뛰었다
+        assertThat(registry.upsertCatalogPage(List.of(v2Entry(72.5, 1)))).isEqualTo(1);
+
+        assertThat(read().avgRti()).isEqualTo(72.5);
+    }
+
+    @Test
+    void v2_상품도_점수가_범위를_벗어나면_등록하지_않는다() {
+        assertThat(registry.upsertCatalogPage(List.of(v2Entry(120.0, 1)))).isZero();
+        assertThat(products.count()).isZero();
     }
 }
