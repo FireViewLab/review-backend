@@ -1,5 +1,6 @@
 package com.example.fireview.domain.search.controller;
 
+import com.example.fireview.domain.dashboard.service.DashboardService;
 import com.example.fireview.domain.search.dto.NaverSearchResponse;
 import com.example.fireview.domain.search.service.NaverSearchService;
 import com.example.fireview.global.response.ApiResponse;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class NaverSearchController {
 
     private final NaverSearchService naverSearchService;
+    private final DashboardService dashboardService;
 
     /**
      * 네이버 쇼핑 API 실시간 상품 검색
@@ -30,6 +32,9 @@ public class NaverSearchController {
     public ApiResponse<NaverSearchResponse> search(
             @RequestParam String keyword,
             @RequestParam(required = false, defaultValue = "100") int display) {
-        return ApiResponse.success(naverSearchService.search(keyword, display));
+        NaverSearchResponse result = naverSearchService.search(keyword, display);
+        // 인기 검색어는 사용자 검색만 센다. 서비스 안에서 세면 다른 경로의 내부 호출까지 섞인다(#247)
+        dashboardService.recordKeywordSearch(keyword);
+        return ApiResponse.success(result);
     }
 }

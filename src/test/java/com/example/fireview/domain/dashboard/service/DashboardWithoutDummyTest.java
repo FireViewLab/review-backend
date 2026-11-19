@@ -39,7 +39,7 @@ import static org.mockito.BDDMockito.given;
  */
 @DataJpaTest
 @ActiveProfiles("test")
-@Import(DashboardService.class)
+@Import({DashboardService.class, SearchKeywordCounter.class})
 class DashboardWithoutDummyTest {
 
     @Autowired DashboardService dashboardService;

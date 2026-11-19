@@ -1,6 +1,5 @@
 package com.example.fireview.domain.search.service;
 
-import com.example.fireview.domain.dashboard.service.DashboardService;
 import com.example.fireview.domain.product.cache.NaverProductCache;
 import com.example.fireview.domain.product.client.NaverShoppingClient;
 import com.example.fireview.domain.product.dto.ProductResponse;
@@ -23,7 +22,6 @@ import java.util.stream.Collectors;
 public class NaverSearchService {
 
     private final NaverShoppingClient naverShoppingClient;
-    private final DashboardService dashboardService;
     private final ProductRepository productRepository;
     private final NaverProductCache naverProductCache;
 
@@ -45,13 +43,6 @@ public class NaverSearchService {
         }
 
         log.info("[NaverSearch] 검색 시작: keyword={}, display={}", keyword, display);
-
-        // 검색 키워드 인기도 기록 (비동기 처리 가능하나 현재는 동기)
-        try {
-            dashboardService.recordKeywordSearch(keyword);
-        } catch (Exception e) {
-            log.warn("[NaverSearch] 키워드 기록 실패 (무시): {}", e.getMessage());
-        }
 
         // 1. DB에서 RTI 데이터가 있는 상품 우선 검색 (platformLinks JOIN FETCH로 LazyInit 방지)
         List<ProductResponse> dbProducts = productRepository

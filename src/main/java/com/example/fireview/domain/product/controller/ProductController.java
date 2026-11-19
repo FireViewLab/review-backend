@@ -39,11 +39,14 @@ public class ProductController {
         if (keyword != null && !keyword.isBlank()) {
             // Data 서버가 설정돼 있으면 실제 쇼핑몰 상품을 검색한다. 응답 모양은 같다.
             // 결과가 비어도 더미로 채우지 않는다 — 진짜 검색 결과에 가짜를 섞지 않는다.
-            if (dataProductCatalogService.isEnabled()) {
-                return ApiResponse.success(dataProductCatalogService.search(keyword));
-            }
-            // Data 서버가 없는 로컬 개발 환경: 네이버 API + DB 병합 결과
-            return ApiResponse.success(naverSearchService.search(keyword, 100).products());
+            // Data 서버가 없는 로컬 개발 환경은 네이버 API + DB 병합 결과다.
+            List<ProductResponse> found = dataProductCatalogService.isEnabled()
+                    ? dataProductCatalogService.search(keyword)
+                    : naverSearchService.search(keyword, 100).products();
+            // 인기 검색어는 여기서 센다. 검색 서비스 안에서 세면 홈 자동 검색(HomeCatalogRefresher)의
+            // 고정 키워드가 순위 1위를 차지한다(#247)
+            dashboardService.recordKeywordSearch(keyword);
+            return ApiResponse.success(found);
         }
         return ApiResponse.success(productService.getAllProducts());
     }
