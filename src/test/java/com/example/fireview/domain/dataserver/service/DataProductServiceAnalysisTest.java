@@ -299,4 +299,21 @@ class DataProductServiceAnalysisTest {
         assertThat(r1.level()).isEqualTo("safe");
         assertThat(r1.reasons()).containsExactly("구체적인 사용 경험이 담겨 있어 신뢰할 만한 리뷰입니다.");
     }
+
+    @Test
+    void 상품_소개_글과_이미지를_내려준다() {
+        // #249: Data 상품 조회 응답의 description_text·description_images
+        DataProductResponse res = callWith("product-analysis-v2-done.json");
+
+        assertThat(res.product().description()).isEqualTo("국산 재료로 만든 간편식입니다.");
+        assertThat(res.product().detailImages()).containsExactly("https://img/desc-1.jpg", "https://img/desc-2.jpg");
+    }
+
+    @Test
+    void 소개를_수집하지_못했으면_null과_빈_배열이다() {
+        DataProductResponse res = callWith("product-analysis-done.json");
+
+        assertThat(res.product().description()).isNull();
+        assertThat(res.product().detailImages()).isEmpty();
+    }
 }

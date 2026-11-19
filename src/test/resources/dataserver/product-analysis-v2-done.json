@@ -1,6 +1,7 @@
 {
   "status": "fresh",
-  "product": {"platform": "kurly", "product_id": "1000146248", "name": "샘플 상품", "url": "https://kurly.com/p", "brand": "브랜드", "manufacturer": null, "seller": null, "price": 29900, "thumbnail_url": "https://img", "category": "식품 > 간편식", "review_count": 128, "rating": 4.5, "last_collected_at": "2026-11-19T00:00:00+09:00"},
+  "product": {"platform": "kurly", "product_id": "1000146248", "name": "샘플 상품", "url": "https://kurly.com/p", "brand": "브랜드", "manufacturer": null, "seller": null, "price": 29900, "thumbnail_url": "https://img", "category": "식품 > 간편식", "review_count": 128, "rating": 4.5, "last_collected_at": "2026-11-19T00:00:00+09:00",
+              "description_text": "국산 재료로 만든 간편식입니다.", "description_images": ["https://img/desc-1.jpg", "https://img/desc-2.jpg"]},
   "reviews": {"items": [
     {"review_id": "r-1", "content": "맛있어요", "rating": 5.0, "author": "user**", "written_at": "2026-11-01T10:00:00+09:00", "option": null, "images": [], "helpful_count": 3},
     {"review_id": "r-2", "content": "좋아요", "rating": 5.0, "author": "kim**", "written_at": "2026-11-02T10:00:00+09:00", "option": null, "images": [], "helpful_count": 0},
