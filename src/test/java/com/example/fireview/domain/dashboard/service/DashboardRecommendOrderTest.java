@@ -29,7 +29,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @TestPropertySource(properties =
         "spring.datasource.url=jdbc:h2:mem:dashboard_recommend_order;DB_CLOSE_DELAY=-1;DEFAULT_NULL_ORDERING=HIGH")
-@Import(DashboardService.class)
+@Import({DashboardService.class, SearchKeywordCounter.class})
 class DashboardRecommendOrderTest {
 
     @Autowired DashboardService dashboardService;

@@ -1,7 +1,5 @@
 package com.example.fireview.global.config;
 
-import com.example.fireview.domain.dashboard.entity.SearchKeyword;
-import com.example.fireview.domain.dashboard.repository.SearchKeywordRepository;
 import com.example.fireview.domain.product.client.NaverShoppingClient;
 import com.example.fireview.domain.product.entity.Category;
 import com.example.fireview.domain.product.entity.PlatformLink;
@@ -49,7 +47,6 @@ public class DataInitializer implements CommandLineRunner {
 
     private final ProductRepository productRepository;
     private final ReviewRepository reviewRepository;
-    private final SearchKeywordRepository keywordRepository;
     private final RtiEngineService rtiEngine;
     private final NaverShoppingClient naverShoppingClient;
 
@@ -67,7 +64,6 @@ public class DataInitializer implements CommandLineRunner {
 
         List<Product> products = createProducts();
         createReviews(products);
-        createKeywords();
 
         log.info("샘플 데이터 초기화 완료. 상품={}, 리뷰={}", productRepository.count(), reviewRepository.count());
     }
@@ -464,21 +460,5 @@ public class DataInitializer implements CommandLineRunner {
 
     private String pickDangerContent() {
         return DANGER_CONTENTS[RANDOM.nextInt(DANGER_CONTENTS.length)];
-    }
-
-    private void createKeywords() {
-        List<SearchKeyword> keywords = List.of(
-                SearchKeyword.builder().keyword("갤럭시").searchCount(15200L).build(),
-                SearchKeyword.builder().keyword("나이키").searchCount(12800L).build(),
-                SearchKeyword.builder().keyword("에어팟").searchCount(11500L).build(),
-                SearchKeyword.builder().keyword("다이슨").searchCount(9300L).build(),
-                SearchKeyword.builder().keyword("설화수").searchCount(8700L).build(),
-                SearchKeyword.builder().keyword("LG그램").searchCount(7100L).build(),
-                SearchKeyword.builder().keyword("뉴발란스").searchCount(6500L).build(),
-                SearchKeyword.builder().keyword("아이오페").searchCount(5800L).build(),
-                SearchKeyword.builder().keyword("홍삼").searchCount(4900L).build(),
-                SearchKeyword.builder().keyword("로얄캐닌").searchCount(3200L).build()
-        );
-        keywordRepository.saveAll(keywords);
     }
 }

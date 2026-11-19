@@ -1,9 +1,7 @@
 package com.example.fireview.domain.dashboard.service;
 
 import com.example.fireview.domain.dashboard.dto.DashboardResponse;
-import com.example.fireview.domain.dashboard.entity.SearchKeyword;
 import com.example.fireview.domain.dashboard.entity.ViewHistory;
-import com.example.fireview.domain.dashboard.repository.SearchKeywordRepository;
 import com.example.fireview.domain.dashboard.repository.ViewHistoryRepository;
 import com.example.fireview.domain.onboarding.entity.UserPreference;
 import com.example.fireview.domain.onboarding.repository.UserPreferenceRepository;
@@ -14,7 +12,6 @@ import com.example.fireview.domain.product.repository.ProductRepository;
 import com.example.fireview.domain.user.entity.User;
 import com.example.fireview.domain.user.service.UserService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,10 +26,11 @@ import java.util.Set;
 public class DashboardService {
 
     private static final Limit RECOMMEND_LIMIT = Limit.of(10);
+    private static final int POPULAR_KEYWORD_LIMIT = 10;
 
     private final ProductRepository productRepository;
     private final ViewHistoryRepository viewHistoryRepository;
-    private final SearchKeywordRepository searchKeywordRepository;
+    private final SearchKeywordCounter searchKeywordCounter;
     private final UserPreferenceRepository userPreferenceRepository;
     private final UserService userService;
 
@@ -74,27 +72,20 @@ public class DashboardService {
         viewHistoryRepository.save(history);
     }
 
-    @Transactional
+    /** 사용자 검색 한 번을 인기 검색어 집계에 더한다. 홈 자동 검색 같은 내부 호출은 부르지 않는다 */
     public void recordKeywordSearch(String keyword) {
-        Optional<SearchKeyword> existing = searchKeywordRepository.findByKeyword(keyword);
-        if (existing.isPresent()) {
-            SearchKeyword kw = existing.get();
-            kw.setSearchCount(kw.getSearchCount() + 1);
-            searchKeywordRepository.save(kw);
-        } else {
-            searchKeywordRepository.save(
-                    SearchKeyword.builder()
-                            .keyword(keyword)
-                            .searchCount(1L)
-                            .build()
-            );
-        }
+        searchKeywordCounter.record(keyword);
     }
 
-    @Cacheable(value = "popularKeywords")
+    /**
+     * 최근 7일 검색 횟수 상위 10개(#247).
+     *
+     * <p>예전에는 누적 횟수 테이블을 읽고 {@code @Cacheable} 을 걸었다. 시드 검색 수(갤럭시 15200회 등)를
+     * 실제 검색이 넘을 수 없었고, TTL 없는 캐시라 재시작 전까지 값이 바뀌지 않았다.
+     * 집계기가 기간을 자르고, Redis 구현은 합친 결과를 60초만 재사용한다.
+     */
     public List<String> getPopularKeywords() {
-        return searchKeywordRepository.findTop10ByOrderBySearchCountDesc()
-                .stream().map(SearchKeyword::getKeyword).toList();
+        return searchKeywordCounter.top(POPULAR_KEYWORD_LIMIT);
     }
 
     private List<ProductResponse> getRecommendedProducts(User user) {

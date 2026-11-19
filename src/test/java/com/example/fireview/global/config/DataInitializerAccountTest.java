@@ -1,6 +1,5 @@
 package com.example.fireview.global.config;
 
-import com.example.fireview.domain.dashboard.repository.SearchKeywordRepository;
 import com.example.fireview.domain.product.client.NaverShoppingClient;
 import com.example.fireview.domain.product.repository.ProductRepository;
 import com.example.fireview.domain.review.repository.ReviewRepository;
@@ -30,7 +29,6 @@ class DataInitializerAccountTest {
         PasswordEncoder passwords = mock(PasswordEncoder.class);
         ProductRepository products = mock(ProductRepository.class);
         ReviewRepository reviews = mock(ReviewRepository.class);
-        SearchKeywordRepository keywords = mock(SearchKeywordRepository.class);
         when(products.count()).thenReturn(productCount);
         when(products.saveAll(anyList())).thenReturn(List.of());
         when(products.findAll()).thenReturn(List.of());
@@ -41,7 +39,6 @@ class DataInitializerAccountTest {
                 .withBean(PasswordEncoder.class, () -> passwords)
                 .withBean(ProductRepository.class, () -> products)
                 .withBean(ReviewRepository.class, () -> reviews)
-                .withBean(SearchKeywordRepository.class, () -> keywords)
                 .withBean(RtiEngineService.class, () -> mock(RtiEngineService.class))
                 .withBean(NaverShoppingClient.class, () -> mock(NaverShoppingClient.class))
                 .withBean(DataInitializer.class)
@@ -50,7 +47,6 @@ class DataInitializerAccountTest {
                     verifyNoInteractions(users, passwords);
                     if (productCount == 0) {
                         verify(products).saveAll(argThat(batch -> StreamSupport.stream(batch.spliterator(), false).count() == 33));
-                        verify(keywords).saveAll(argThat(batch -> StreamSupport.stream(batch.spliterator(), false).count() == 10));
                     }
                 });
     }
