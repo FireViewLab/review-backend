@@ -1,0 +1,39 @@
+{
+  "status": "fresh",
+  "product": {"platform": "kurly", "product_id": "1000146248", "name": "샘플 상품", "url": "https://kurly.com/p", "brand": "브랜드", "manufacturer": null, "seller": null, "price": 29900, "thumbnail_url": "https://img", "category": "식품 > 간편식", "review_count": 128, "rating": 4.5, "last_collected_at": "2026-11-19T00:00:00+09:00"},
+  "reviews": {"items": [
+    {"review_id": "r-1", "content": "맛있어요", "rating": 5.0, "author": "user**", "written_at": "2026-11-01T10:00:00+09:00", "option": null, "images": [], "helpful_count": 3},
+    {"review_id": "r-2", "content": "좋아요", "rating": 5.0, "author": "kim**", "written_at": "2026-11-02T10:00:00+09:00", "option": null, "images": [], "helpful_count": 0},
+    {"review_id": "r-3", "content": "광고 같아요", "rating": 5.0, "author": "lee**", "written_at": "2026-11-03T10:00:00+09:00", "option": null, "images": [], "helpful_count": 0}
+  ], "next_cursor": null},
+  "analysis": {
+    "status": "done",
+    "job": {"id": 52, "platform": "kurly", "product_id": "1000146248", "status": "done", "attempt_count": 1,
+            "ai_job_id": "ai-v3", "input_review_count": 128, "last_error": null,
+            "completed_at": "2026-11-19T03:00:00+00:00"},
+    "input_hash": "sha256:def",
+    "model_version": "v3.1",
+    "policy_version": "policy-v3",
+    "contract_version": "v2",
+    "review_count": 128,
+    "sampled": true,
+    "source_review_count": 1318,
+    "results": [
+      {"review_id": "r-1", "rti": null, "level": null, "text_score": 80.0, "behavior_score": null,
+       "network_score": 90.0, "reasons": [],
+       "policy_index_v3": 80.4, "evidence_level_v3": "SAFE",
+       "analysis_summary_ko": "구체적인 사용 경험이 담겨 있어 신뢰할 만한 리뷰입니다.",
+       "rules_reasons_ko": ["사용 경험이 구체적입니다."], "evidence_reasons_v3": ["RATING_VERIFIED"],
+       "reason_source": "groq"},
+      {"review_id": "r-2", "rti": null, "level": null, "text_score": 30.0, "behavior_score": null,
+       "network_score": null, "reasons": [],
+       "policy_index_v3": 35.0, "evidence_level_v3": "DANGER", "analysis_summary_ko": null,
+       "rules_reasons_ko": ["내용이 매우 짧습니다.", "구체적인 근거가 없습니다."],
+       "evidence_reasons_v3": ["TEXT_SHORT"], "reason_source": "rules"},
+      {"review_id": "r-3", "rti": null, "level": null, "text_score": null, "behavior_score": null,
+       "network_score": null, "reasons": [],
+       "policy_index_v3": null, "evidence_level_v3": null, "analysis_summary_ko": null,
+       "rules_reasons_ko": [], "evidence_reasons_v3": [], "reason_source": "rules"}
+    ]
+  }
+}

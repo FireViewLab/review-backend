@@ -229,7 +229,7 @@ class DataServerProductAnalysisAdapterTest {
 
     private static DataServerAnalysis analysis(String status, Integer reviewCount) {
         return new DataServerAnalysis(status, null, "hash", "model", "rti-v0.1",
-                reviewCount, false, reviewCount, List.of());
+                reviewCount, false, reviewCount, "v0.5", List.of());
     }
 
     private static DataServerProductResponse withAnalysis(DataServerProduct p, List<DataServerReview> reviews,
@@ -336,7 +336,7 @@ class DataServerProductAnalysisAdapterTest {
     }
 
     private static DataServerReviewAnalysis scored(String id, double rti, String... reasons) {
-        return new DataServerReviewAnalysis(id, rti, rti >= 70 ? "safe" : rti >= 40 ? "warn" : "danger",
+        return DataServerReviewAnalysis.v05(id, rti, rti >= 70 ? "safe" : rti >= 40 ? "warn" : "danger",
                 rti, null, null, List.of(reasons));
     }
 
@@ -344,7 +344,7 @@ class DataServerProductAnalysisAdapterTest {
                                                     String status, List<DataServerReviewAnalysis> results) {
         return new DataServerProductResponse("fresh", product(null),
                 new DataServerProductResponse.Reviews(reviews, next), null,
-                new DataServerAnalysis(status, null, "hash", "model", "rti-v0.1", 208, false, 208, results));
+                new DataServerAnalysis(status, null, "hash", "model", "rti-v0.1", 208, false, 208, "v0.5", results));
     }
 
     @Test

@@ -143,7 +143,7 @@ class DataProductServiceAnalysisTest {
         DataProductResponse res = callWith(new DataServerProductResponse(
                 done.status(), done.product(), done.reviews(), done.job(),
                 new DataServerAnalysis(raw, a.job(), a.inputHash(), a.modelVersion(),
-                        a.policyVersion(), a.reviewCount(), a.sampled(), a.sourceReviewCount(), hasAnalysis ? a.results() : List.of())));
+                        a.policyVersion(), a.reviewCount(), a.sampled(), a.sourceReviewCount(), a.contractVersion(), hasAnalysis ? a.results() : List.of())));
 
         assertThat(res.analysisStatus()).isEqualTo(expected);
         assertThat(res.analysis() != null).isEqualTo(hasAnalysis);

@@ -123,4 +123,61 @@ class DataServerAnalysisJsonTest {
         assertThat(analysis.sourceReviewCount()).isNull();
         assertThat(analysis.reviewCount()).isEqualTo(40);
     }
+
+    @Test
+    void v2_결과는_정책_지수와_등급을_rti와_level_자리로_옮긴다() {
+        // #250: v3.1 결과는 rti·level·reasons 가 비어 온다. 그대로 두면 재분석된 상품이 미분석처럼 보인다
+        DataServerAnalysis analysis = DataServerFixtures.load("product-analysis-v2-done.json").analysis();
+
+        assertThat(analysis.contractVersion()).isEqualTo("v2");
+        DataServerReviewAnalysis r1 = analysis.resultsByReviewId().get("r-1");
+        assertThat(r1.rti()).isEqualTo(80.4);
+        assertThat(r1.level()).isEqualTo("safe");
+        assertThat(r1.policyIndexV3()).isEqualTo(80.4);
+        assertThat(r1.evidenceLevelV3()).isEqualTo("SAFE");
+        assertThat(r1.textScore()).isEqualTo(80.0);
+    }
+
+    @Test
+    void v2_사유는_한_문단_설명을_먼저_쓰고_없으면_상세_근거를_쓴다() {
+        var results = DataServerFixtures.load("product-analysis-v2-done.json").analysis().resultsByReviewId();
+
+        assertThat(results.get("r-1").reasons())
+                .containsExactly("구체적인 사용 경험이 담겨 있어 신뢰할 만한 리뷰입니다.");
+        assertThat(results.get("r-2").reasons())
+                .containsExactly("내용이 매우 짧습니다.", "구체적인 근거가 없습니다.");
+        assertThat(results.get("r-2").level()).isEqualTo("danger");
+    }
+
+    @Test
+    void v2_계산_불가는_null로_남는다() {
+        DataServerReviewAnalysis r3 = DataServerFixtures.load("product-analysis-v2-done.json")
+                .analysis().resultsByReviewId().get("r-3");
+
+        assertThat(r3.rti()).isNull();
+        assertThat(r3.level()).isNull();
+        assertThat(r3.reasons()).isEmpty();
+    }
+
+    @Test
+    void v0_5_결과는_v2_필드가_있어도_그대로_둔다() throws JsonProcessingException {
+        DataServerAnalysis analysis = DataServerFixtures.MAPPER.readValue("""
+                {"status": "done", "contract_version": "v0.5", "results": [
+                  {"review_id": "r-1", "rti": 60.0, "level": "warn", "reasons": ["TEXT_SHORT"],
+                   "policy_index_v3": null, "evidence_level_v3": null}]}
+                """, DataServerAnalysis.class);
+
+        DataServerReviewAnalysis r1 = analysis.resultsByReviewId().get("r-1");
+        assertThat(r1.rti()).isEqualTo(60.0);
+        assertThat(r1.level()).isEqualTo("warn");
+        assertThat(r1.reasons()).containsExactly("TEXT_SHORT");
+    }
+
+    @Test
+    void 계약을_모르는_구버전_응답은_v0_5로_읽는다() {
+        DataServerAnalysis analysis = DataServerFixtures.load("product-analysis-done.json").analysis();
+
+        assertThat(analysis.contractVersion()).isNull();
+        assertThat(analysis.resultsByReviewId().get("r-1").rti()).isEqualTo(82.5);
+    }
 }
