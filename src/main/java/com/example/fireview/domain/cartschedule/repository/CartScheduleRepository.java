@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -23,6 +24,34 @@ public interface CartScheduleRepository extends JpaRepository<CartSchedule, Long
             ORDER BY s.nextRunAt ASC, s.id ASC
             """)
     List<CartSchedule> findDue(@Param("now") LocalDateTime now, Limit limit);
+
+    /**
+     * 확인 전 제안을 확정한다. 지금 상태가 {@code PROPOSED} 이고 기한 안일 때만 바꾼다 —
+     * 오래 읽어 둔 확정 요청이 뒤늦게 와도 취소를 되살리거나 실행기가 넘긴 회차를 되돌리지 않는다.
+     *
+     * @return 바꾼 행 수. 0 이면 이미 확정·취소됐거나 기한이 지났다
+     */
+    @Transactional
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            UPDATE CartSchedule s SET s.status = 'ACTIVE', s.nextRunAt = :nextRunAt
+            WHERE s.id = :id AND s.status = 'PROPOSED' AND s.createdAt >= :createdAfter
+            """)
+    int activateProposal(@Param("id") Long id, @Param("nextRunAt") LocalDateTime nextRunAt,
+                         @Param("createdAfter") LocalDateTime createdAfter);
+
+    /**
+     * 진행 중이거나 확인 전인 예약을 취소한다. 이미 끝났거나 취소한 예약은 그대로 둔다.
+     *
+     * @return 바꾼 행 수
+     */
+    @Transactional
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            UPDATE CartSchedule s SET s.status = 'CANCELLED', s.nextRunAt = NULL
+            WHERE s.id = :id AND s.status IN ('ACTIVE', 'PROPOSED')
+            """)
+    int cancelIfOpen(@Param("id") Long id);
 
     /**
      * 한 회차를 실행했다고 적는다. {@code next_run_at} 이 읽을 때 값 그대로일 때만 바꾼다 —
