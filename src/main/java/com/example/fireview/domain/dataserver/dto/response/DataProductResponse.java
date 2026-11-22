@@ -132,6 +132,11 @@ public record DataProductResponse(
      * v4 가 아직 채워지지 않은 리뷰는 v4 필드가 전부 null 이고, v3 값으로 대신 채우지 않는다.
      * v3.1 설명({@code reasons})은 v3.1 등급 기준이라 v4 등급과 함께 보여주지 않는다.
      *
+     * @param textScore         본문 신호 점수(0~100). 계산 불가면 null
+     * @param behaviorScore     행동 신호 점수(0~100). 계산 불가면 null
+     * @param networkScore      관계 신호 점수(0~100). 계산 불가면 null.
+     *                          화면의 리뷰 상세 "텍스트·행동·네트워크 점수"가 이 이름을 읽는다.
+     *                          예전에는 내려주지 않아 세 점수가 늘 "계산 불가"였다
      * @param policyIndexV3     v3.1 정책 지수(0~100). v2 계약이면 {@code rti} 와 같은 값이다. 없으면 null
      * @param evidenceLevelV3   v3.1 등급 {@code SAFE}/{@code WARN}/{@code DANGER}. 대문자. 없으면 null.
      *                          v2 계약 화면은 리뷰마다 이 두 이름을 읽는다. 예전에는 {@code rti}·{@code level} 로만
@@ -161,6 +166,9 @@ public record DataProductResponse(
             Double rti,
             String level,
             List<String> reasons,
+            Double textScore,
+            Double behaviorScore,
+            Double networkScore,
             Double policyIndexV3,
             String evidenceLevelV3,
             String analysisSummaryKo,
