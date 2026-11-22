@@ -36,6 +36,22 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     @Query("SELECT p FROM Product p WHERE p.avgRti < :threshold ORDER BY p.avgRti ASC")
     List<Product> findRiskyProducts(double threshold);
 
+    /**
+     * 이미 저장된 Data 서버 상품을 이름으로 찾는다. 리뷰가 저장된 상품만, 분석 완료·리뷰 많은 순.
+     *
+     * <p>실시간 몰 검색({@code GET /{platform}/search})은 수집이 멈추면 거절되지만, Data 에는 이미 모은
+     * 상품·리뷰가 남아 있다. 그 상품은 카탈로그 동기화로 이 테이블에도 있다.
+     * {@code keyword} 의 {@code %}·{@code _}·{@code \} 는 호출자가 이스케이프한다.
+     */
+    @Query("""
+            SELECT p FROM Product p
+            WHERE p.dataPlatform IS NOT NULL AND p.analysisSourceReviewCount > 0
+              AND LOWER(p.name) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '\\'
+            ORDER BY CASE WHEN p.analysisStatus = 'DONE' THEN 0 ELSE 1 END,
+                p.analysisSourceReviewCount DESC, p.id DESC
+            """)
+    List<Product> findStoredByNameWithReviews(@Param("keyword") String keyword, Limit limit);
+
     /** Data 서버 상품이 하나라도 있는지. 없으면 대시보드가 기존 더미로 채운다 */
     boolean existsByDataPlatformIsNotNull();
 

@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import com.example.fireview.domain.product.dto.ProductResponse;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.data.domain.Limit;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -168,6 +169,23 @@ public class ProductTagRegistry {
                 .map(this::upsertForDisplay)
                 .map(ProductResponse::from)
                 .toList();
+    }
+
+    /**
+     * 이미 저장된 Data 상품 중 리뷰가 있는 것을 이름으로 찾아 응답으로 바꾼다.
+     * 응답 변환이 구매 링크 컬렉션을 읽으므로 트랜잭션 안에서 바꾼다.
+     */
+    @Transactional(readOnly = true)
+    public java.util.List<ProductResponse> findStoredForDisplay(String keyword, int limit) {
+        return productRepository.findStoredByNameWithReviews(escapeLike(keyword.strip()), Limit.of(limit))
+                .stream()
+                .map(ProductResponse::from)
+                .toList();
+    }
+
+    /** LIKE 의 특수 문자를 글자 그대로 찾게 바꾼다. 이스케이프 문자는 쿼리의 ESCAPE 와 맞춘다 */
+    static String escapeLike(String value) {
+        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     /** 네트워크 조회가 끝난 페이지의 표시 정보와 분석 요약만 짧게 저장한다. */

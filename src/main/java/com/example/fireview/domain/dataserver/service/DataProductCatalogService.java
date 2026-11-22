@@ -70,7 +70,16 @@ public class DataProductCatalogService {
      * 붙잡고 있게 된다. 저장만 짧은 트랜잭션으로 묶는다.
      */
     public List<ProductResponse> search(String keyword) {
-        return search(keyword, limitPerPlatform);
+        List<ProductResponse> live = search(keyword, limitPerPlatform);
+        if (!live.isEmpty()) {
+            return live;
+        }
+        // 실시간 몰 검색이 비면 이미 모아 둔 상품에서 찾는다. 운영자가 수집을 멈추면 Data 는 몰 검색을
+        // 503 으로 거절하는데, 그동안 모은 상품·리뷰는 그대로 남아 있다. 홈 자동 채우기는 새로 채운
+        // 수를 세므로 이 대체 결과를 쓰지 않는다(search(keyword, limit) 를 직접 부른다).
+        List<ProductResponse> stored = registry.findStoredForDisplay(keyword, limitPerPlatform * platforms.size());
+        log.info("[DataCatalog] 실시간 검색 0건, 저장된 상품 {}건으로 대신한다 - keyword={}", stored.size(), keyword);
+        return stored;
     }
 
     /**

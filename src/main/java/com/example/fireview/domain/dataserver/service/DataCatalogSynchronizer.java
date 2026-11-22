@@ -41,26 +41,47 @@ public class DataCatalogSynchronizer {
             initialDelayString = "${app.data-catalog-sync.interval-ms:300000}")
     public void scheduled() { synchronize(); }
 
+    /** 한 번 실행에서 읽는 최대 페이지 수(페이지당 100건) */
+    static final int MAX_PAGES_PER_RUN = 100;
+
+    /**
+     * 지난 실행이 페이지 한도에 걸려 멈춘 자리. 끝까지 읽었거나 중간에 끊기면 null 이라 처음부터 읽는다.
+     *
+     * <p>예전에는 매번 처음부터 100페이지(1만 건)만 읽어서, Data 상품이 그보다 많으면 뒤쪽 상품은
+     * 이 서버에 영영 들어오지 않았다(Data 상품 약 4만 6천 건).
+     */
+    private volatile String resumeCursor;
+
     /** 외부 호출은 DB 트랜잭션 밖에서 하고 페이지 저장만 짧게 묶는다. */
     public int synchronize() {
         if (!client.isConfigured() || !running.compareAndSet(false, true)) return 0;
         int saved = 0;
-        String cursor = null;
+        String cursor = resumeCursor;
+        resumeCursor = null;
         Set<String> seen = new HashSet<>();
         try {
-            for (int page = 0; page < 100; page++) {
+            for (int page = 0; page < MAX_PAGES_PER_RUN; page++) {
                 Optional<DataServerCatalogPage> found = client.findCatalog(cursor);
-                if (found.isEmpty() || found.get().items() == null) break;
+                if (found.isEmpty() || found.get().items() == null) {
+                    cursor = null;
+                    break;
+                }
                 DataServerCatalogPage body = found.get();
                 saved += registry.upsertCatalogPage(body.items());
                 cursor = body.nextCursor();
-                if (cursor == null || cursor.isBlank()) break;
+                if (cursor == null || cursor.isBlank()) {
+                    cursor = null;
+                    break;
+                }
                 if (!seen.add(cursor) || body.items().isEmpty()) {
                     log.warn("[DataCatalog] 잘못된 페이지 이동을 중단한다");
+                    cursor = null;
                     break;
                 }
             }
-            log.info("[DataCatalog] 상품·분석 동기화 {}건", saved);
+            // 한도까지 읽고도 다음 페이지가 남았으면 다음 실행이 그 자리부터 이어 읽는다
+            resumeCursor = cursor;
+            log.info("[DataCatalog] 상품·분석 동기화 {}건{}", saved, cursor == null ? "" : ", 다음 실행에서 이어 읽는다");
             return saved;
         } catch (RuntimeException e) {
             log.warn("[DataCatalog] 동기화 실패, 다음 주기에 다시 시도한다: {}", e.getClass().getSimpleName());

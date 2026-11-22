@@ -32,3 +32,7 @@ analysis_scored_review_count(점수가 나온 리뷰 수)도 nullable 추가 컬
 v4.0 목록 필드 avgPolicyIndexV4·v4LevelCounts(#255)도 nullable 추가 컬럼(avg_policy_indexv4, v4safe_count, v4warn_count, v4danger_count)이다. 숫자 뒤 대문자에는 밑줄이 붙지 않는 Spring 기본 이름 규칙 때문이다.
 v4 값이 범위를 벗어나면 상품은 그대로 저장하고 v4 값만 비운다. 완료가 아닌 상태가 되면 v3 평균과 함께 지운다.
 기존 행은 첫 동기화로 채우며 원본 리뷰·리뷰별 점수는 Data에 유지한다.
+
+한 번 실행에 최대 100페이지(1만 건)를 읽는다. 다음 페이지가 남으면 다음 실행(5분 뒤)이 그 자리부터 이어 읽고, 끝까지 읽으면 다시 처음부터 읽는다. 실패하거나 페이지 이동이 이상하면 처음부터 다시 읽는다.
+
+사용자 검색(`GET /api/products?keyword=`)은 Data 실시간 몰 검색이 0건이면 이 동기화로 저장된 상품 중 Data 에 리뷰가 있는 것(`analysisSourceReviewCount > 0`)을 이름으로 찾아 보여준다. 운영자가 수집을 멈추면 Data 는 몰 검색을 거절하지만, 이미 모은 상품은 검색되게 하려는 것이다. 홈 자동 채우기는 이 대체 결과를 쓰지 않는다.
