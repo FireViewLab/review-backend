@@ -98,7 +98,7 @@ DECLARE
         to_regclass('products'), to_regclass('reviews'), to_regclass('analysis_feedbacks'),
         to_regclass('analysis_feedback_signals'), to_regclass('review_feedbacks'), to_regclass('reports'),
         to_regclass('review_reasons'), to_regclass('wishlists'), to_regclass('cart_items'),
-        to_regclass('cart_events'), to_regclass('view_histories'), to_regclass('product_platform_links')]::OID[];
+        to_regclass('cart_events'), to_regclass('cart_schedules'), to_regclass('view_histories'), to_regclass('product_platform_links')]::OID[];
     mismatch TEXT;
 BEGIN
     SELECT string_agg(c.oid::regclass::TEXT || ' relkind=' || c.relkind::TEXT
@@ -122,6 +122,7 @@ BEGIN
         ('wishlists', 'product_id', 'products'),
         ('cart_items', 'product_id', 'products'),
         ('cart_events', 'product_id', 'products'),
+        ('cart_schedules', 'product_id', 'products'),
         ('view_histories', 'product_id', 'products'),
         ('product_platform_links', 'product_id', 'products'),
         ('reports', 'product_id', 'products'),
@@ -232,6 +233,7 @@ UNION ALL SELECT 'reports', COUNT(*) FROM reports
 UNION ALL SELECT 'wishlists', COUNT(*) FROM wishlists WHERE product_id IN (SELECT id FROM dummy_products)
 UNION ALL SELECT 'cart_items', COUNT(*) FROM cart_items WHERE product_id IN (SELECT id FROM dummy_products)
 UNION ALL SELECT 'cart_events', COUNT(*) FROM cart_events WHERE product_id IN (SELECT id FROM dummy_products)
+UNION ALL SELECT 'cart_schedules', COUNT(*) FROM cart_schedules WHERE product_id IN (SELECT id FROM dummy_products)
 UNION ALL SELECT 'view_histories', COUNT(*) FROM view_histories WHERE product_id IN (SELECT id FROM dummy_products)
 UNION ALL SELECT 'product_platform_links', COUNT(*) FROM product_platform_links
     WHERE product_id IN (SELECT id FROM dummy_products);
@@ -242,6 +244,7 @@ FROM (
     SELECT user_id, 'wishlists' AS kind FROM wishlists WHERE product_id IN (SELECT id FROM dummy_products)
     UNION ALL SELECT user_id, 'cart_items' FROM cart_items WHERE product_id IN (SELECT id FROM dummy_products)
     UNION ALL SELECT user_id, 'cart_events' FROM cart_events WHERE product_id IN (SELECT id FROM dummy_products)
+    UNION ALL SELECT user_id, 'cart_schedules' FROM cart_schedules WHERE product_id IN (SELECT id FROM dummy_products)
     UNION ALL SELECT reporter_id, 'reports' FROM reports
         WHERE review_id IN (SELECT id FROM dummy_reviews) OR product_id IN (SELECT id FROM dummy_products)
     UNION ALL SELECT user_id, 'review_feedbacks' FROM review_feedbacks
@@ -322,6 +325,9 @@ BEGIN
     DELETE FROM cart_events WHERE product_id IN (SELECT id FROM dummy_products);
     GET DIAGNOSTICS affected = ROW_COUNT;
     RAISE NOTICE 'cart_events: % 건 삭제', affected;
+    DELETE FROM cart_schedules WHERE product_id IN (SELECT id FROM dummy_products);
+    GET DIAGNOSTICS affected = ROW_COUNT;
+    RAISE NOTICE 'cart_schedules: % 건 삭제', affected;
     DELETE FROM view_histories WHERE product_id IN (SELECT id FROM dummy_products);
     GET DIAGNOSTICS affected = ROW_COUNT;
     RAISE NOTICE 'view_histories: % 건 삭제', affected;
@@ -362,6 +368,7 @@ UNION ALL SELECT 'reports (대상 남음)', COUNT(*) FROM reports
 UNION ALL SELECT 'wishlists (대상 남음)', COUNT(*) FROM wishlists WHERE product_id IN (SELECT id FROM dummy_products)
 UNION ALL SELECT 'cart_items (대상 남음)', COUNT(*) FROM cart_items WHERE product_id IN (SELECT id FROM dummy_products)
 UNION ALL SELECT 'cart_events (대상 남음)', COUNT(*) FROM cart_events WHERE product_id IN (SELECT id FROM dummy_products)
+UNION ALL SELECT 'cart_schedules (대상 남음)', COUNT(*) FROM cart_schedules WHERE product_id IN (SELECT id FROM dummy_products)
 UNION ALL SELECT 'view_histories (대상 남음)', COUNT(*) FROM view_histories
     WHERE product_id IN (SELECT id FROM dummy_products)
 UNION ALL SELECT 'product_platform_links (대상 남음)', COUNT(*) FROM product_platform_links

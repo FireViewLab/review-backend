@@ -184,7 +184,7 @@ class RemoveDummyProductsSqlTest {
         while (fk.find()) {
             expected.add(fk.group(1) + "." + fk.group(2) + " -> " + fk.group(3) + ".id");
         }
-        assertThat(expected).hasSize(14);
+        assertThat(expected).hasSize(15);
 
         // 점검 대상 테이블(targets 의 to_regclass 목록) = 이 파일이 DELETE 하는 테이블
         String targets = guard.substring(0, guard.indexOf("]::OID[]"));
