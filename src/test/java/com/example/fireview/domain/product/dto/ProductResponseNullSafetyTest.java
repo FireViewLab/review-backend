@@ -142,6 +142,16 @@ class ProductResponseNullSafetyTest {
     }
 
     @Test
+    void Data에_리뷰가_저장돼_있으면_리뷰_수_0은_null이다() {
+        // 11번가는 검색 응답에 리뷰 수를 주지 않아 0 이 남는다. 리뷰를 분석까지 했으면 0 개일 수 없다
+        Product tag = tagOnly();
+        tag.setReviewCount(0);
+        tag.setAnalysisSourceReviewCount(15);
+
+        assertThat(ProductResponse.from(tag).reviewCount()).isNull();
+    }
+
+    @Test
     void 레거시_상품의_평점과_상태는_바꾸지_않는다() {
         Product legacy = Product.builder().id(900000000000L).name("삼성 갤럭시")
                 .platform("NAVER").category(Category.DIGITAL_MOBILE).avgRti(80.0)

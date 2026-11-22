@@ -137,7 +137,7 @@ public record ProductResponse(
                 grade,
                 grade == null ? null : grade.toLevel(),
                 grade == null ? null : grade.getColor(),
-                product.getReviewCount(),
+                reviewCount(product),
                 avgRating(product),
                 platformDtos,
                 product.getLowestPrice(),
@@ -154,6 +154,23 @@ public record ProductResponse(
                 ReviewLevelCounts.of(product.getV4SafeCount(), product.getV4WarnCount(),
                         product.getV4DangerCount())
         );
+    }
+
+    /**
+     * Data 서버에 리뷰가 저장돼 있는데 리뷰 수가 0 이하면 null 로 내린다.
+     *
+     * <p>번호표를 만들 때 리뷰 수가 비어 있으면 0 이 채워진다(Product.onCreate). 11번가처럼 검색 응답에
+     * 리뷰 수를 주지 않는 몰은 그 0 이 남아, 리뷰를 분석까지 한 상품이 메인에 "리뷰 0개"로 보였다.
+     * 저장된 리뷰가 있으면 0 은 확실히 틀린 값이라 "모름"으로 바꾼다. 그 근거가 없으면 실제 0 개와
+     * 구분할 수 없어 그대로 둔다. 기존 상품은 손대지 않는다.
+     */
+    private static Integer reviewCount(Product product) {
+        Integer count = product.getReviewCount();
+        Integer stored = product.getAnalysisSourceReviewCount();
+        if (product.hasDataServerAddress() && (count == null || count <= 0) && stored != null && stored > 0) {
+            return null;
+        }
+        return count;
     }
 
     /**

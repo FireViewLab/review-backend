@@ -6,7 +6,6 @@ import com.example.fireview.domain.dashboard.entity.ViewHistory;
 import com.example.fireview.domain.dashboard.repository.ViewHistoryRepository;
 import com.example.fireview.domain.onboarding.entity.UserPreference;
 import com.example.fireview.domain.onboarding.repository.UserPreferenceRepository;
-import com.example.fireview.domain.product.dto.ProductResponse;
 import com.example.fireview.domain.product.entity.Category;
 import com.example.fireview.domain.product.entity.Product;
 import com.example.fireview.domain.product.repository.ProductRepository;
@@ -64,12 +63,12 @@ class DashboardWithoutDummyTest {
     }
 
     @Test
-    void 공개_대시보드는_위험_상품이_빈_배열이다() {
+    void 공개_대시보드는_분석_전_상품을_올리지_않는다() {
+        // 검색으로 막 등록된 상품은 리뷰가 아직 없을 수 있다. 빈자리를 이런 상품으로 채우지 않는다
         DashboardResponse res = dashboardService.getPublicDashboard();
 
+        assertThat(res.recommendedProducts()).isEmpty();
         assertThat(res.riskyProducts()).isEmpty();
-        assertThat(res.recommendedProducts()).extracting(ProductResponse::externalId)
-                .containsExactly("kurly-1000146248");
     }
 
     @Test
@@ -102,6 +101,8 @@ class DashboardWithoutDummyTest {
     @Test
     void 대시보드_상품에_분석_상태가_실린다() {
         real.observeAnalysisStatus(AnalysisStatus.DONE, LocalDateTime.now());
+        real.setAvgRti(80.0);
+        real.setAnalysisReviewCount(DashboardService.MIN_ANALYZED_REVIEWS);
         productRepository.saveAndFlush(real);
 
         JsonNode json = new ObjectMapper().valueToTree(dashboardService.getPublicDashboard());
@@ -113,6 +114,11 @@ class DashboardWithoutDummyTest {
 
     @Test
     void 분석_상태를_못_본_대시보드_상품은_null이다() {
+        // Data 상품이 하나도 없을 때만 기존 상품으로 채운다. 그 상품은 분석 상태가 없다
+        productRepository.deleteAll();
+        productRepository.save(Product.builder().id(900000000001L).name("더미").platform("NAVER")
+                .avgRti(80.0).build());
+
         JsonNode json = new ObjectMapper().valueToTree(dashboardService.getPublicDashboard());
 
         JsonNode product = json.get("recommendedProducts").get(0);

@@ -36,6 +36,45 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     @Query("SELECT p FROM Product p WHERE p.avgRti < :threshold ORDER BY p.avgRti ASC")
     List<Product> findRiskyProducts(double threshold);
 
+    /** Data 서버 상품이 하나라도 있는지. 없으면 대시보드가 기존 더미로 채운다 */
+    boolean existsByDataPlatformIsNotNull();
+
+    /**
+     * 대시보드 추천. Data 서버 상품 중 분석이 끝나고 분석한 리뷰가 {@code minReviews} 건 이상인 것만,
+     * RTI 높은 순. 분석 전 상품으로 빈자리를 채우지 않는다 — 검색으로 막 등록된 상품은 리뷰가 아직
+     * 없을 수 있고, 리뷰 한두 건으로 낸 평균은 상품 신뢰도로 보이기 어렵다.
+     */
+    @Query("""
+            SELECT p FROM Product p
+            WHERE p.dataPlatform IS NOT NULL AND p.analysisStatus = 'DONE'
+              AND p.avgRti IS NOT NULL AND p.analysisReviewCount >= :minReviews
+            ORDER BY p.avgRti DESC, p.analysisReviewCount DESC, p.id DESC
+            """)
+    List<Product> findDashboardRecommended(@Param("minReviews") int minReviews, Limit limit);
+
+    /** {@link #findDashboardRecommended} 를 선호 카테고리와 최소 신뢰도로 좁힌 것 */
+    @Query("""
+            SELECT p FROM Product p
+            WHERE p.dataPlatform IS NOT NULL AND p.analysisStatus = 'DONE'
+              AND p.avgRti IS NOT NULL AND p.analysisReviewCount >= :minReviews
+              AND p.category IN :categories AND p.avgRti >= :minScore
+            ORDER BY p.avgRti DESC, p.analysisReviewCount DESC, p.id DESC
+            """)
+    List<Product> findDashboardRecommendedIn(@Param("categories") Collection<Category> categories,
+                                             @Param("minScore") double minScore,
+                                             @Param("minReviews") int minReviews, Limit limit);
+
+    /** 대시보드 위험 상품. 조건은 {@link #findDashboardRecommended} 와 같고 RTI 낮은 순 */
+    @Query("""
+            SELECT p FROM Product p
+            WHERE p.dataPlatform IS NOT NULL AND p.analysisStatus = 'DONE'
+              AND p.avgRti IS NOT NULL AND p.analysisReviewCount >= :minReviews
+              AND p.avgRti < :threshold
+            ORDER BY p.avgRti ASC, p.analysisReviewCount DESC, p.id DESC
+            """)
+    List<Product> findDashboardRisky(@Param("threshold") double threshold,
+                                     @Param("minReviews") int minReviews, Limit limit);
+
     Optional<Product> findByNaverProductId(String naverProductId);
 
     /**
