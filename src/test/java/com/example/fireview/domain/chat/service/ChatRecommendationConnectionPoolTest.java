@@ -69,6 +69,7 @@ class ChatRecommendationConnectionPoolTest {
     @Autowired DataSource dataSource;
 
     @MockitoBean LlmClient llmClient;
+    @MockitoBean com.example.fireview.domain.cartschedule.service.CartScheduleService cartScheduleService;
     @MockitoBean ProductAnalysisPort productAnalysisPort;
     @MockitoBean UserService userService;
 
