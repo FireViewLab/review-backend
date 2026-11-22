@@ -61,7 +61,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 인증이 필요한 경로(번호표 발급 · 찜 · 장바구니 · 신고 · 챗봇)를 실제 필터 체인으로 검증한다.
+ * 인증이 필요한 경로(번호표 발급 · 찜 · 장바구니 · 장바구니 예약 · 신고 · 챗봇)를 실제 필터 체인으로 검증한다.
  *
  * <p>Swagger 로 손으로 확인하던 구간을 자동화한 것이다. 토큰은 운영과 같은
  * {@link JwtTokenProvider} 로 발급해 {@code SecurityConfig} 의 JwtDecoder 를 그대로 통과시킨다.
@@ -89,6 +89,7 @@ class AuthRequiredEndpointsTest {
     @MockitoBean DataProductTagService dataProductTagService;
     @MockitoBean WishlistService wishlistService;
     @MockitoBean CartService cartService;
+    @MockitoBean com.example.fireview.domain.cartschedule.service.CartScheduleService cartScheduleService;
     @MockitoBean ReportService reportService;
     @MockitoBean ChatService chatService;
 
@@ -130,6 +131,9 @@ class AuthRequiredEndpointsTest {
                 endpoint("장바구니 수량 변경", () -> put("/api/cart/1").param("quantity", "2")),
                 endpoint("장바구니 삭제", () -> delete("/api/cart/1")),
                 endpoint("장바구니 비우기", () -> delete("/api/cart")),
+                endpoint("장바구니 예약 확정", () -> post("/api/cart-schedules/1/confirm")),
+                endpoint("장바구니 예약 목록", () -> get("/api/cart-schedules")),
+                endpoint("장바구니 예약 취소", () -> delete("/api/cart-schedules/1")),
 
                 endpoint("리뷰 신고", () -> post("/api/reports/reviews/1")
                         .contentType(MediaType.APPLICATION_JSON).content(REPORT_BODY)),
