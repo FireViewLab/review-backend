@@ -29,8 +29,9 @@ public class DashboardService {
     private static final double RISKY_THRESHOLD = 60.0;
 
     /**
-     * 대시보드에 올릴 상품의 최소 분석 리뷰 수. 리뷰 한두 건으로 낸 평균은 상품 신뢰도로 보이기 어렵다.
+     * 대시보드에 올릴 상품의 최소 리뷰 수. 리뷰 한두 건으로 낸 평균은 상품 신뢰도로 보이기 어렵다.
      * 운영에서 리뷰 1건짜리 상품이 RTI 96 으로 추천 맨 위를 차지했다.
+     * 분석에 넣은 수(표본)가 아니라 점수가 나온 수로 센다. 500건을 넣고 1건만 점수가 나와도 평균은 그 1건이다.
      */
     static final int MIN_ANALYZED_REVIEWS = 5;
     private static final int POPULAR_KEYWORD_LIMIT = 10;
