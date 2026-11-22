@@ -614,7 +614,8 @@ Spring DB 에 그 리뷰 행이 없고, 본문을 클라이언트에게 받으�
     "proAvailable": false,
     "resetAt": "2026-10-01T15:00:00Z"
   },
-  "recommendations": []
+  "recommendations": [],
+  "scheduleProposal": null
 }
 ```
 
@@ -640,6 +641,21 @@ Spring DB 에 그 리뷰 행이 없고, 본문을 클라이언트에게 받으�
   추천 조회 실패(DB 장애 등). 추천이 실패해도 답변·저장·쿼터는 정상 턴과 같고 200 으로 응답한다
 - `price`·`reviewCount`·`rating`·`thumbnailUrl` 은 모르면 **null** 이다. 0 으로 채우지 않는다
 - 이전 대화 불러오기(`/sessions/{id}/messages`)에는 추천이 저장되지 않는다
+
+**`scheduleProposal` — 장바구니 예약 제안** (#269)
+
+상품 대화에서 사용자가 "매주 월요일마다 이거 장바구니에 담아줘"처럼 날짜나 주기를 정해 담아 달라고 하면
+예약 제안이 담긴다. 아니면 `null` 이다. **이 시점에는 아직 예약되지 않았다.** 사용자가 확인 버튼을 눌러야 확정된다.
+
+```json
+"scheduleProposal": { "scheduleId": 55, "summary": "매주 월요일 오전 9시 · 1개", "productName": "텀블러" }
+```
+
+- 확인 버튼 → `POST /api/cart-schedules/{scheduleId}/confirm` (10-1절)
+- 지원하는 주기: 한 번(날짜), 매주(요일), 매월(날짜, 그 달에 없는 날은 말일). 매일·격주는 지원하지 않는다
+- 모델은 응답 형식의 `SCHEDULE:` 줄에 예약 내용만 옮겨 적고, 서버가 형식을 엄격히 검사한다. 어긋나면 제안 없이 답변만 나간다
+- `null` 인 경우: 예약 요청이 아님, `blocked=true`, 상품 없는 대화, 형식 오류·지난 날짜·1년 넘는 날짜·수량 1~10 밖, 진행 중 예약 20개, 저장 실패
+- 예약 때문에 LLM 을 더 부르지 않으며 쿼터도 그대로다
 
 **POST `/api/chat/pro/messages`** — 요청·응답 형식이 `/api/chat/messages` 와 완전히 같다.
 `PRO` 요금제만 호출할 수 있고, 그 외에는 `403 CHAT_PLAN_REQUIRED` 다. 상위 모델로 더 긴 답변을 받는다.
@@ -821,6 +837,32 @@ LLM 을 부르지 않으므로 빠르고, 쿼터를 깎지 않는다. 채팅 화
 { "items": [ ], "totalCount": 3, "subtotal": 89700,
   "shippingFee": 3000, "totalPrice": 92700 }
 ```
+
+### 10-1. 장바구니 예약 (`/api/cart-schedules`) — **인증 필요** (#269)
+
+챗봇이 만든 예약 제안(`scheduleProposal`)을 확정하고, 확정한 예약을 보거나 취소한다.
+확정된 예약은 서버가 5분마다 확인해 정한 시각(한국 시간)이 지나면 장바구니에 담고 알림(`SYSTEM`)을 보낸다.
+
+| Method | Path | 설명 |
+|--------|------|------|
+| POST | `/api/cart-schedules/{id}/confirm` | 제안 확정. 24시간이 지났거나 이미 확정·취소했거나 진행 중 예약이 20개면 `409 CART_SCHEDULE_NOT_CONFIRMABLE` |
+| GET | `/api/cart-schedules` | 진행 중인 예약. 다음에 담을 시각이 이른 순 |
+| DELETE | `/api/cart-schedules/{id}` | 예약 취소. 이미 끝났거나 취소한 예약이면 그대로 200 |
+
+남의 예약은 `403 CART_SCHEDULE_FORBIDDEN`, 없는 예약은 `404 CART_SCHEDULE_NOT_FOUND` 다.
+
+**`CartScheduleResponse`**
+
+```json
+{ "id": 55, "productId": 643763393047927, "productName": "텀블러", "externalId": "kurly-1000146248",
+  "summary": "매주 월요일 오전 9시 · 1개", "repeatType": "WEEKLY",
+  "nextRunAt": "2026-11-23T09:00:00", "status": "ACTIVE" }
+```
+
+- `repeatType`: `ONCE` / `WEEKLY` / `MONTHLY`
+- `status`: `PROPOSED`(확정 전) / `ACTIVE` / `DONE`(한 번 예약 완료) / `CANCELLED`
+- `nextRunAt` 은 한국 시간이다. 놓친 회차(서버 점검 등)는 몰아서 담지 않고 다음 회차로 넘긴다
+- 예약이 담을 때 장바구니에 같은 상품이 있으면 수량을 더한다
 
 ---
 
