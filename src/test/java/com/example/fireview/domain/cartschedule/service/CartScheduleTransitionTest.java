@@ -71,21 +71,29 @@ class CartScheduleTransitionTest {
         users.deleteAll();
     }
 
+    /**
+     * 초 단위로 자른 지금. Linux JVM 은 나노초까지 만들지만 DB 는 마이크로초까지만 저장해,
+     * 저장했다 다시 읽은 값과 비교하면 어긋난다(CI 에서만 실패했다).
+     */
+    private static LocalDateTime now() {
+        return LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+    }
+
     private CartSchedule save(String status, LocalDateTime nextRunAt) {
         return schedules.save(CartSchedule.builder().user(user).product(product).quantity(1).rule(WEEKLY)
-                .nextRunAt(nextRunAt).status(status).createdAt(LocalDateTime.now()).build());
+                .nextRunAt(nextRunAt).status(status).createdAt(now()).build());
     }
 
     @Test
     void 확정은_확인_전_상태에서만_바뀐다() {
-        LocalDateTime cutoff = LocalDateTime.now().minusHours(24);
-        LocalDateTime advanced = LocalDateTime.now().plusDays(7);
+        LocalDateTime cutoff = now().minusHours(24);
+        LocalDateTime advanced = now().plusDays(7);
         CartSchedule cancelled = save(CartSchedule.CANCELLED, null);
         CartSchedule ran = save(CartSchedule.ACTIVE, advanced);
 
         // 오래 읽어 둔 확정 요청이 뒤늦게 와도 취소를 되살리거나 실행기가 넘긴 회차를 되돌리지 않는다
-        assertThat(schedules.activateProposal(cancelled.getId(), LocalDateTime.now().plusDays(1), cutoff)).isZero();
-        assertThat(schedules.activateProposal(ran.getId(), LocalDateTime.now().plusDays(1), cutoff)).isZero();
+        assertThat(schedules.activateProposal(cancelled.getId(), now().plusDays(1), cutoff)).isZero();
+        assertThat(schedules.activateProposal(ran.getId(), now().plusDays(1), cutoff)).isZero();
 
         assertThat(schedules.findById(cancelled.getId()).orElseThrow().getStatus()).isEqualTo(CartSchedule.CANCELLED);
         assertThat(schedules.findById(ran.getId()).orElseThrow().getNextRunAt()).isEqualTo(advanced);
@@ -102,11 +110,11 @@ class CartScheduleTransitionTest {
     @Test
     void 동시에_확정해도_진행_중_예약_한도를_넘지_않는다() throws Exception {
         for (int i = 0; i < CartScheduleService.MAX_ACTIVE - 1; i++) {
-            save(CartSchedule.ACTIVE, LocalDateTime.now().plusDays(1));
+            save(CartSchedule.ACTIVE, now().plusDays(1));
         }
         List<Long> proposals = List.of(
-                save(CartSchedule.PROPOSED, LocalDateTime.now().plusDays(1)).getId(),
-                save(CartSchedule.PROPOSED, LocalDateTime.now().plusDays(1)).getId());
+                save(CartSchedule.PROPOSED, now().plusDays(1)).getId(),
+                save(CartSchedule.PROPOSED, now().plusDays(1)).getId());
 
         ExecutorService pool = Executors.newFixedThreadPool(2);
         CountDownLatch start = new CountDownLatch(1);
