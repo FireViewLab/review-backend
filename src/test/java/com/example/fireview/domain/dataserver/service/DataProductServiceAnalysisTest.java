@@ -377,6 +377,17 @@ class DataProductServiceAnalysisTest {
     }
 
     @Test
+    void 리뷰별_신호_점수를_내려주고_계산_불가는_null이다() {
+        // 화면의 리뷰 상세 "텍스트·행동·네트워크 점수"가 이 이름을 읽는다. 내려주지 않아 늘 "계산 불가"였다
+        DataProductResponse res = callWith("product-analysis-v2-done.json");
+
+        DataReview r1 = review(res, "r-1");
+        assertThat(r1.textScore()).isEqualTo(80.0);
+        assertThat(r1.behaviorScore()).isNull();
+        assertThat(r1.networkScore()).isEqualTo(90.0);
+    }
+
+    @Test
     void v4_결과를_v3_필드와_따로_내려준다() {
         // #255: 화면 등급·지수는 v4 를 쓰고, rti·level·reasons 는 되돌리기용으로 그대로 둔다
         DataProductResponse res = callWith("product-analysis-v2-done.json");
