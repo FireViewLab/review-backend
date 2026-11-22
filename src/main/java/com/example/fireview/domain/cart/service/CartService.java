@@ -9,6 +9,7 @@ import com.example.fireview.domain.cart.repository.CartRepository;
 import com.example.fireview.domain.product.entity.Product;
 import com.example.fireview.domain.product.service.ProductService;
 import com.example.fireview.domain.user.entity.User;
+import com.example.fireview.domain.user.repository.UserRepository;
 import com.example.fireview.domain.user.service.UserService;
 import com.example.fireview.global.exception.CustomException;
 import com.example.fireview.global.exception.ErrorCode;
@@ -29,6 +30,7 @@ public class CartService {
     private final UserService userService;
     private final ProductService productService;
     private final CartEventRepository cartEventRepository;
+    private final UserRepository userRepository;
     private final Clock clock;
 
     /** 장바구니 조회 */
@@ -56,6 +58,10 @@ public class CartService {
      */
     @Transactional
     public CartItemResponse add(User user, Product product, int quantity, String source) {
+        // 읽고 더해서 저장하는 사이에 같은 사용자의 다른 담기(직접·예약)가 끼면 한쪽 증가가 사라진다.
+        // 사용자 행을 잠가 같은 사용자의 담기를 한 줄로 세운다. 첫 담기끼리 겹쳐 같은 행을 두 번
+        // 만들려다 유니크 제약에 걸리는 것도 함께 막는다.
+        userRepository.lockById(user.getId());
         cartEventRepository.save(CartEvent.builder()
                 .user(user)
                 .product(product)
