@@ -201,6 +201,7 @@ public class ProductTagRegistry {
             DataServerCatalogPage.LevelCounts countsV4 = done ? validCounts(a.v4LevelCounts()) : null;
             productRepository.updateAnalysisSummary(p.platform(), p.productId(), status.name(),
                     LocalDateTime.now(), avg, a.sampled(), a.reviewCount(), a.sourceReviewCount(),
+                    a.scoredReviewCount(),
                     avgV4,
                     countsV4 == null ? null : countsV4.safe(),
                     countsV4 == null ? null : countsV4.warn(),

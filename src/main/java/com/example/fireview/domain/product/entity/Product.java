@@ -124,6 +124,12 @@ public class Product {
     private Integer analysisSourceReviewCount;
 
     /**
+     * 분석에 넣은 리뷰 중 실제로 점수가 나온 수. {@link #analysisReviewCount}(표본 수)와 다르다 —
+     * 500건을 넣어도 1건만 점수가 나오면 평균은 그 1건이다. 대시보드는 이 값으로 리뷰가 충분한지 본다.
+     */
+    private Integer analysisScoredReviewCount;
+
+    /**
      * v4.0 텍스트 모델의 상품 평균 지수와 등급별 리뷰 수(#255). v4 가 아직 없으면 null.
      * v3.1 평균은 {@link #avgRti} 에 그대로 두어 되돌릴 수 있게 한다. 서로 대신 채우지 않는다.
      */

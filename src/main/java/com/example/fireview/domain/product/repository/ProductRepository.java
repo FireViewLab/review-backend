@@ -121,6 +121,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             UPDATE Product p SET p.analysisStatus = :status, p.analysisStatusAt = :observedAt,
                 p.avgRti = :avgRti, p.analysisSampled = :sampled,
                 p.analysisReviewCount = :reviewCount, p.analysisSourceReviewCount = :sourceReviewCount,
+                p.analysisScoredReviewCount = :scoredReviewCount,
                 p.avgPolicyIndexV4 = :avgPolicyIndexV4, p.v4SafeCount = :v4SafeCount,
                 p.v4WarnCount = :v4WarnCount, p.v4DangerCount = :v4DangerCount
             WHERE p.dataPlatform = :dataPlatform AND p.dataProductId = :dataProductId
@@ -130,6 +131,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             @Param("observedAt") LocalDateTime observedAt, @Param("avgRti") Double avgRti,
             @Param("sampled") Boolean sampled, @Param("reviewCount") Integer reviewCount,
             @Param("sourceReviewCount") Integer sourceReviewCount,
+            @Param("scoredReviewCount") Integer scoredReviewCount,
             @Param("avgPolicyIndexV4") Double avgPolicyIndexV4, @Param("v4SafeCount") Integer v4SafeCount,
             @Param("v4WarnCount") Integer v4WarnCount, @Param("v4DangerCount") Integer v4DangerCount);
 
