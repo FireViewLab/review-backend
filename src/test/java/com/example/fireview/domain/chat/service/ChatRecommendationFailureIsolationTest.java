@@ -41,7 +41,7 @@ import static org.mockito.Mockito.when;
 @ActiveProfiles("test")
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @Import({ChatService.class, ChatRecommendationService.class, PromptAssembler.class, TopicGuard.class,
-        ChatPlanPolicy.class, ChatQuotaStore.class, JacksonAutoConfiguration.class})
+        ChatPlanPolicy.class, ChatQuotaStore.class, JacksonAutoConfiguration.class, com.example.fireview.global.config.ClockConfig.class})
 class ChatRecommendationFailureIsolationTest {
 
     private static final String EMAIL = "isolation@test.com";

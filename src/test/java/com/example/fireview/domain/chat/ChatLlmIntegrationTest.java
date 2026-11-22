@@ -64,7 +64,7 @@ class ChatLlmIntegrationTest {
     static void setUp() {
         objectMapper = new ObjectMapper();
         guard = new TopicGuard();
-        assembler = new PromptAssembler(objectMapper, guard);
+        assembler = new PromptAssembler(objectMapper, guard, java.time.Clock.systemDefaultZone());
 
         AnthropicOkHttpClient.Builder builder = AnthropicOkHttpClient.builder()
                 .apiKey(System.getenv("LLM_API_KEY"))

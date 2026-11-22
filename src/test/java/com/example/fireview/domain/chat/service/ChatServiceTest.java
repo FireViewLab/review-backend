@@ -90,7 +90,7 @@ class ChatServiceTest {
     void setUp() {
         ObjectMapper objectMapper = new ObjectMapper();
         TopicGuard guard = new TopicGuard();
-        PromptAssembler assembler = new PromptAssembler(objectMapper, guard);
+        PromptAssembler assembler = new PromptAssembler(objectMapper, guard, java.time.Clock.systemDefaultZone());
 
         // 정책과 카운터는 목이 아니라 실물을 쓴다. 하루 5개 제한이 실제로 걸리는지를
         // 봐야 하는데 목으로 대체하면 스텁이 그 답을 미리 정해버린다.

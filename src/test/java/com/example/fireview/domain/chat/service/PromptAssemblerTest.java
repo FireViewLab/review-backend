@@ -3,13 +3,38 @@ package com.example.fireview.domain.chat.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.Arrays;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class PromptAssemblerTest {
 
-    private final PromptAssembler assembler = new PromptAssembler(new ObjectMapper(), new TopicGuard());
+    /** 2026-11-22 일요일 오후 3시(한국) */
+    private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-11-22T06:00:00Z"), ZoneId.of("Asia/Seoul"));
+
+    private final PromptAssembler assembler = new PromptAssembler(new ObjectMapper(), new TopicGuard(), CLOCK);
+
+    @Test
+    void 오늘_날짜와_요일을_알려준다() {
+        // "다음 주 금요일" 같은 말을 실제 날짜로 바꾸려면 모델이 오늘을 알아야 한다
+        assertThat(assembler.systemPrompt()).contains("오늘은 2026-11-22(일)");
+    }
+
+    @Test
+    void 장바구니_예약_줄의_형식을_알려준다() {
+        String prompt = assembler.systemPrompt();
+
+        assertThat(prompt).contains("[장바구니 예약]",
+                "SCHEDULE: none",
+                "SCHEDULE: once 2026-12-01 09:00 qty=1",
+                "SCHEDULE: weekly MON 09:00 qty=1",
+                "SCHEDULE: monthly 1 09:00 qty=1");
+        // 서버가 확인 버튼으로 확정하므로 모델이 예약을 끝냈다고 단정하면 안 된다
+        assertThat(prompt).contains("버튼을 눌러야 예약이 확정된다");
+    }
 
     @Test
     void 본문에_마크다운_기호를_쓰지_말라는_규칙이_있다() {
@@ -45,8 +70,8 @@ class PromptAssemblerTest {
         String prompt = assembler.systemPrompt();
 
         assertThat(prompt).contains("RECOMMEND: yes", "RECOMMEND: no");
-        // ONTOPIC 바로 다음 줄에 둔다. LlmAnswer 는 그 자리만 읽는다
-        assertThat(prompt).contains("ONTOPIC: yes\nRECOMMEND: no\n---\n");
+        // ONTOPIC 바로 다음 줄에 두고 SCHEDULE 줄이 이어진다. LlmAnswer 는 헤더 다음 두 줄만 읽는다
+        assertThat(prompt).contains("ONTOPIC: yes\nRECOMMEND: no\nSCHEDULE: none\n---\n");
     }
 
     @Test
