@@ -11,6 +11,7 @@ import com.example.fireview.domain.dataserver.DataServerProductKey;
 import com.example.fireview.domain.dataserver.service.ProductTagRegistry;
 import com.example.fireview.domain.product.entity.Product;
 import com.example.fireview.domain.user.entity.User;
+import com.example.fireview.domain.user.repository.UserRepository;
 import com.example.fireview.domain.user.service.UserService;
 import com.example.fireview.global.exception.CustomException;
 import com.example.fireview.global.exception.ErrorCode;
@@ -43,6 +44,7 @@ public class CartScheduleService {
     private final CartScheduleRepository scheduleRepository;
     private final ProductTagRegistry registry;
     private final UserService userService;
+    private final UserRepository userRepository;
     private final Clock clock;
 
     /**
@@ -56,6 +58,7 @@ public class CartScheduleService {
                                               ScheduleRequest request) {
         Optional<DataServerProductKey> key = DataServerProductKey.parse(externalProductId);
         if (key.isEmpty()) return Optional.empty();
+        lockUser(user);
         if (scheduleRepository.countByUser_IdAndStatus(user.getId(), CartSchedule.ACTIVE) >= MAX_ACTIVE) {
             log.info("[CartSchedule] 진행 중 예약 한도라 제안하지 않는다 - userId={}", user.getId());
             return Optional.empty();
@@ -78,32 +81,40 @@ public class CartScheduleService {
                 ScheduleText.describe(request.rule(), request.quantity()), product.getName()));
     }
 
-    /** 제안을 확정한다. 다음 실행 시각은 확인하는 지금을 기준으로 다시 계산한다 */
+    /**
+     * 제안을 확정한다. 다음 실행 시각은 확인하는 지금을 기준으로 다시 계산한다.
+     *
+     * <p>상태는 엔티티를 고쳐 저장하지 않고 조건부 UPDATE 로 바꾼다. 읽어 둔 엔티티로 저장하면
+     * 그 사이 취소된 예약을 되살리거나 실행기가 넘긴 회차를 되돌려 한 번 더 담는다(#269 리뷰).
+     * 한도 검사와 확정은 사용자 행 잠금 안에서 해서, 동시에 확정해도 한도를 넘지 않는다.
+     */
     @Transactional
     public CartScheduleResponse confirm(String userEmail, Long scheduleId) {
         User user = userService.findByEmail(userEmail);
         CartSchedule schedule = owned(user, scheduleId);
+        lockUser(user);
         LocalDateTime now = LocalDateTime.now(clock);
-        if (!CartSchedule.PROPOSED.equals(schedule.getStatus())
-                || schedule.getCreatedAt().isBefore(now.minusHours(PROPOSAL_TTL_HOURS))
-                || scheduleRepository.countByUser_IdAndStatus(user.getId(), CartSchedule.ACTIVE) >= MAX_ACTIVE) {
+        if (scheduleRepository.countByUser_IdAndStatus(user.getId(), CartSchedule.ACTIVE) >= MAX_ACTIVE) {
             throw new CustomException(ErrorCode.CART_SCHEDULE_NOT_CONFIRMABLE);
         }
         LocalDateTime next = NextRunCalculator.next(schedule.rule(), now);
-        if (next == null) {
+        if (next == null || scheduleRepository.activateProposal(
+                scheduleId, next, now.minusHours(PROPOSAL_TTL_HOURS)) == 0) {
             throw new CustomException(ErrorCode.CART_SCHEDULE_NOT_CONFIRMABLE);
         }
-        schedule.activate(next);
-        return CartScheduleResponse.from(schedule);
+        return CartScheduleResponse.from(scheduleRepository.findById(scheduleId).orElseThrow());
     }
 
-    /** 예약을 취소한다. 이미 끝났거나 취소한 예약은 그대로 둔다 */
+    /** 예약을 취소한다. 이미 끝났거나 취소한 예약은 그대로 둔다. 상태는 조건부 UPDATE 로 바꾼다 */
     @Transactional
     public void cancel(String userEmail, Long scheduleId) {
-        CartSchedule schedule = owned(userService.findByEmail(userEmail), scheduleId);
-        if (CartSchedule.ACTIVE.equals(schedule.getStatus()) || CartSchedule.PROPOSED.equals(schedule.getStatus())) {
-            schedule.cancel();
-        }
+        owned(userService.findByEmail(userEmail), scheduleId);
+        scheduleRepository.cancelIfOpen(scheduleId);
+    }
+
+    /** 같은 사용자의 제안·확정·장바구니 담기를 한 줄로 세운다. 트랜잭션이 끝나면 풀린다 */
+    private void lockUser(User user) {
+        userRepository.lockById(user.getId());
     }
 
     /** 진행 중인 예약. 다음에 담을 시각이 이른 순 */

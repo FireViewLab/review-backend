@@ -26,6 +26,9 @@ import java.time.LocalTime;
 /**
  * 장바구니 예약. 챗봇이 제안({@link #PROPOSED})으로 만들고 사용자가 확인하면 {@link #ACTIVE} 가 된다.
  *
+ * <p>상태는 엔티티를 고쳐 저장하지 않고 저장소의 조건부 UPDATE({@code activateProposal},
+ * {@code cancelIfOpen}, {@code advance})로만 바꾼다. 읽어 둔 엔티티를 저장하면 그 사이 바뀐 상태를 덮어쓴다.
+ *
  * <p>{@code status}·{@code repeat_type} 은 enum 칼럼이 아니라 문자열이다. enum 이면 Hibernate 가 체크 제약을
  * 붙이는데 {@code ddl-auto=update} 는 값이 늘어도 제약을 고치지 않아 새 값 저장이 거부된다(#205).
  * 시각은 모두 한국 시간 LocalDateTime 이다.
@@ -113,16 +116,5 @@ public class CartSchedule {
 
     public boolean isOwnedBy(Long userId) {
         return user.getId().equals(userId);
-    }
-
-    /** 제안을 확정한다. 다음 실행 시각은 확정하는 시점 기준으로 다시 계산한 값이다 */
-    public void activate(LocalDateTime nextRunAt) {
-        this.status = ACTIVE;
-        this.nextRunAt = nextRunAt;
-    }
-
-    public void cancel() {
-        this.status = CANCELLED;
-        this.nextRunAt = null;
     }
 }
