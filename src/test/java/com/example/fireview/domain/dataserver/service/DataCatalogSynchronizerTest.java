@@ -31,6 +31,21 @@ class DataCatalogSynchronizerTest {
     }
 
     @Test
+    void 페이지_한도에_걸리면_다음_실행은_이어서_읽는다() {
+        // 매번 처음부터 1만 건만 읽으면 그 뒤 상품은 영영 들어오지 않는다
+        when(client.isConfigured()).thenReturn(true);
+        var counter = new java.util.concurrent.atomic.AtomicInteger();
+        when(client.findCatalog(any())).thenAnswer(inv -> Optional.of(new DataServerCatalogPage(
+                List.of(mock(DataServerCatalogPage.Entry.class)), "c" + counter.incrementAndGet())));
+
+        sync.synchronize();
+        verify(client, times(DataCatalogSynchronizer.MAX_PAGES_PER_RUN)).findCatalog(any());
+
+        sync.synchronize();
+        verify(client).findCatalog("c" + DataCatalogSynchronizer.MAX_PAGES_PER_RUN);
+    }
+
+    @Test
     void 외부_실패에서는_캐시를_지우지_않고_다음_실행을_허용한다() {
         when(client.isConfigured()).thenReturn(true);
         when(client.findCatalog(null)).thenReturn(Optional.empty());
