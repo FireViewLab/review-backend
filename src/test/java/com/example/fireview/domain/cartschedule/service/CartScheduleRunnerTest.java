@@ -8,8 +8,6 @@ import com.example.fireview.domain.cart.service.CartService;
 import com.example.fireview.domain.cartschedule.ScheduleRule;
 import com.example.fireview.domain.cartschedule.entity.CartSchedule;
 import com.example.fireview.domain.cartschedule.repository.CartScheduleRepository;
-import com.example.fireview.domain.notification.entity.NotificationType;
-import com.example.fireview.domain.notification.service.NotificationService;
 import com.example.fireview.domain.product.entity.Product;
 import com.example.fireview.domain.product.repository.ProductRepository;
 import com.example.fireview.domain.product.service.ProductService;
@@ -38,12 +36,6 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 
 @DataJpaTest
 @ActiveProfiles("test")
@@ -71,7 +63,6 @@ class CartScheduleRunnerTest {
     @Autowired UserRepository users;
     @Autowired ProductRepository products;
     @Autowired EntityManager em;
-    @MockitoBean NotificationService notificationService;
     @MockitoBean UserService userService;
     @MockitoBean ProductService productService;
 
@@ -109,8 +100,7 @@ class CartScheduleRunnerTest {
         assertThat(cartItems.findByUser_IdAndProduct_Id(user.getId(), 5L)).map(CartItem::getQuantity).contains(2);
         assertThat(events.findAll()).singleElement()
                 .satisfies(e -> assertThat(e.getSource()).isEqualTo(CartEvent.SCHEDULE));
-        verify(notificationService).createNotification(any(User.class), eq(NotificationType.SYSTEM),
-                anyString(), anyString(), anyString());
+        // 알림은 커밋 뒤에 보낸다. 커밋되지 않는 이 테스트 대신 CartScheduleNotificationIsolationTest 가 본다
     }
 
     @Test
@@ -159,22 +149,4 @@ class CartScheduleRunnerTest {
         assertThat(cartItems.findAll()).isEmpty();
     }
 
-    @Test
-    void 알림이_실패해도_담기와_다음_회차_갱신은_남는다() {
-        doThrow(new IllegalStateException("smtp down")).when(notificationService)
-                .createNotification(any(), any(), anyString(), anyString(), anyString());
-        CartSchedule s = schedule(ScheduleRule.weekly(DayOfWeek.MONDAY, LocalTime.of(9, 0)),
-                LocalDateTime.of(2026, 11, 23, 9, 0), CartSchedule.ACTIVE, 1);
-
-        assertThat(runner.runDue()).isEqualTo(1);
-
-        assertThat(reload(s).getNextRunAt()).isEqualTo(LocalDateTime.of(2026, 11, 30, 9, 0));
-        assertThat(cartItems.findAll()).hasSize(1);
-    }
-
-    @Test
-    void 실행_대상이_없으면_알림도_없다() {
-        assertThat(runner.runDue()).isZero();
-        verify(notificationService, never()).createNotification(any(), any(), anyString(), anyString(), anyString());
-    }
 }
