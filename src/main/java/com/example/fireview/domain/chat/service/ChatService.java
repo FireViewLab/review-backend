@@ -1,5 +1,8 @@
 package com.example.fireview.domain.chat.service;
 
+import com.example.fireview.domain.cartschedule.ScheduleRequest;
+import com.example.fireview.domain.cartschedule.dto.ScheduleProposal;
+import com.example.fireview.domain.cartschedule.service.CartScheduleService;
 import com.example.fireview.domain.chat.client.LlmClient;
 import com.example.fireview.domain.chat.entity.ChatMessage;
 import com.example.fireview.domain.chat.entity.ChatRole;
@@ -21,7 +24,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionOperations;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -59,6 +64,8 @@ public class ChatService {
     private final ChatQuotaStore quotaStore;
     private final ChatRecommendationService recommendationService;
     private final TransactionOperations transactionOperations;
+    private final CartScheduleService cartScheduleService;
+    private final Clock clock;
 
     /**
      * @param tier      호출된 엔드포인트의 등급. 요금제가 이 등급을 쓸 수 없으면 403
@@ -70,11 +77,15 @@ public class ChatService {
         Turn turn = transactionOperations.execute(
                 status -> converse(userEmail, tier, sessionId, productId, question));
 
-        // ── 추천: 대화 트랜잭션이 커밋되고 커넥션을 돌려준 뒤에 조회한다 ──
-        if (!turn.wantsRecommendations()) {
-            return turn.result();
+        // ── 추천·예약 제안: 대화 트랜잭션이 커밋되고 커넥션을 돌려준 뒤에 처리한다 ──
+        ChatResult result = turn.result();
+        if (turn.wantsRecommendations()) {
+            result = result.withRecommendations(findRecommendations(turn.productId()));
         }
-        return turn.result().withRecommendations(findRecommendations(turn.productId()));
+        if (turn.scheduleValue() != null && turn.productId() != null) {
+            result = result.withScheduleProposal(proposeSchedule(turn).orElse(null));
+        }
+        return result;
     }
 
     /** 대화 한 턴을 처리하고 저장한다. 호출자가 연 트랜잭션 안에서 돈다 */
@@ -168,7 +179,10 @@ public class ChatService {
         ChatResult result = new ChatResult(session.getId(), parsed.answer(), false, null,
                 response.inputTokens() + response.outputTokens(), quotaOf(user, plan), List.of());
         // 추천: 모델이 원한다고 판단한 턴에만, 상품은 DB 에서 고른다 (LLM 추가 호출 없음)
-        return new Turn(result, parsed.wantsRecommendations(), session.getProductId());
+        // 예약: 모델이 옮겨 적은 SCHEDULE 값만 받아 두고, 검사와 저장은 커밋 뒤에 한다 (LLM 추가 호출 없음)
+        return new Turn(result, parsed.wantsRecommendations(), session.getProductId(), user,
+                parsed.wantsSchedule() ? parsed.scheduleValue() : null,
+                context == null ? null : context.productName());
     }
 
     /** 오늘 남은 사용량. 프론트가 전송 버튼을 막거나 남은 횟수를 보여줄 때 쓴다 */
@@ -211,6 +225,21 @@ public class ChatService {
         } catch (RuntimeException e) {
             log.warn("[Chat] 추천 조회 실패, 빈 목록으로 대체 - productId={}", productId, e);
             return List.of();
+        }
+    }
+
+    /**
+     * 예약 제안은 부가 기능이라 형식이 어긋나거나 저장이 실패해도 답변은 그대로 돌려준다.
+     * 추천과 같은 이유로 대화 트랜잭션 밖(호출자)에서 잡는다.
+     */
+    private Optional<ScheduleProposal> proposeSchedule(Turn turn) {
+        try {
+            return ScheduleRequest.parse(turn.scheduleValue(), LocalDateTime.now(clock))
+                    .flatMap(request -> cartScheduleService.propose(
+                            turn.user(), turn.productId(), turn.productName(), request));
+        } catch (RuntimeException e) {
+            log.warn("[Chat] 예약 제안 실패, 제안 없이 답변만 보낸다 - productId={}", turn.productId(), e);
+            return Optional.empty();
         }
     }
 
@@ -306,9 +335,14 @@ public class ChatService {
      *
      * @param productId 추천 기준 상품. 요청값이 아니라 세션에 저장된 값
      */
-    private record Turn(ChatResult result, boolean wantsRecommendations, String productId) {
+    /**
+     * @param scheduleValue 주제 안 답변에서 모델이 적은 SCHEDULE 값. 예약 요청이 아니면 null
+     * @param productName   대화 상품 이름. 예약할 상품의 번호표가 없을 때 이름으로 쓴다. 모르면 null
+     */
+    private record Turn(ChatResult result, boolean wantsRecommendations, String productId,
+                        User user, String scheduleValue, String productName) {
         static Turn of(ChatResult blocked) {
-            return new Turn(blocked, false, null);
+            return new Turn(blocked, false, null, null, null, null);
         }
     }
 
@@ -321,14 +355,24 @@ public class ChatService {
      */
     public record ChatResult(Long sessionId, String answer, boolean blocked,
                              String blockReason, int usedTokens, QuotaStatus quota,
-                             List<ChatRecommendation> recommendations) {
+                             List<ChatRecommendation> recommendations, ScheduleProposal scheduleProposal) {
         public ChatResult {
             recommendations = recommendations == null ? List.of() : List.copyOf(recommendations);
         }
 
+        public ChatResult(Long sessionId, String answer, boolean blocked, String blockReason, int usedTokens,
+                          QuotaStatus quota, List<ChatRecommendation> recommendations) {
+            this(sessionId, answer, blocked, blockReason, usedTokens, quota, recommendations, null);
+        }
+
         ChatResult withRecommendations(List<ChatRecommendation> recommendations) {
             return new ChatResult(sessionId, answer, blocked, blockReason, usedTokens, quota,
-                    recommendations);
+                    recommendations, scheduleProposal);
+        }
+
+        ChatResult withScheduleProposal(ScheduleProposal proposal) {
+            return new ChatResult(sessionId, answer, blocked, blockReason, usedTokens, quota,
+                    recommendations, proposal);
         }
     }
 

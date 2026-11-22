@@ -1,5 +1,7 @@
 package com.example.fireview.domain.user.service;
 
+import com.example.fireview.domain.cart.repository.CartEventRepository;
+import com.example.fireview.domain.cartschedule.repository.CartScheduleRepository;
 import com.example.fireview.domain.auth.service.RefreshTokenService;
 import com.example.fireview.domain.notification.repository.NotificationRepository;
 import com.example.fireview.domain.report.repository.ReportRepository;
@@ -35,6 +37,8 @@ public class UserService {
     private final ReportRepository reportRepository;
     private final NotificationRepository notificationRepository;
     private final RefreshTokenService refreshTokenService;
+    private final CartEventRepository cartEventRepository;
+    private final CartScheduleRepository cartScheduleRepository;
 
     // ── 요금제 ────────────────────────────────────────────────────────────────
 
@@ -112,12 +116,21 @@ public class UserService {
         return UserResponse.from(userRepository.save(user));
     }
 
-    /** 회원 탈퇴 */
+    /**
+     * 회원 탈퇴.
+     *
+     * <p>장바구니 담기 이력과 예약은 장바구니를 비워도 남으므로 먼저 지운다. 지우지 않으면 예약 기능을
+     * 쓴 적 없는 사용자도 담기 한 번으로 탈퇴가 외래 키에 막힌다(#269 리뷰). 이 삭제는 영속성 컨텍스트를
+     * 비우므로 사용자는 id 로 지운다.
+     */
     @Transactional
     public void deleteAccount(String email) {
         User user = findByEmail(email);
-        userRepository.delete(user);
-        refreshTokenService.revokeAll(user.getId());
+        Long userId = user.getId();
+        cartEventRepository.deleteByUserId(userId);
+        cartScheduleRepository.deleteByUserId(userId);
+        userRepository.deleteById(userId);
+        refreshTokenService.revokeAll(userId);
     }
 
     /** 최근 활동 목록 (찜 추가, 피드백 제출 최신 10건 혼합) */

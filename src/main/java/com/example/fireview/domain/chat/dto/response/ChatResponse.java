@@ -1,5 +1,6 @@
 package com.example.fireview.domain.chat.dto.response;
 
+import com.example.fireview.domain.cartschedule.dto.ScheduleProposal;
 import com.example.fireview.domain.chat.service.ChatService;
 
 import java.util.List;
@@ -13,6 +14,8 @@ import java.util.List;
  * @param quota       이 턴을 반영한 오늘 사용량. 남은 횟수 표시에 쓴다
  * @param recommendations 답변 아래에 보여줄 비슷한 상품. 없으면 빈 배열(null 이 아니다).
  *                        차단됐거나 사용자가 추천을 원하지 않은 턴은 항상 비어 있다
+ * @param scheduleProposal 장바구니 예약 제안. 화면은 이걸 보고 확인 버튼을 그린다.
+ *                         예약 요청이 아니었거나 만들 수 없었으면 null
  */
 public record ChatResponse(
         Long sessionId,
@@ -21,7 +24,8 @@ public record ChatResponse(
         String blockReason,
         int usedTokens,
         ChatQuotaResponse quota,
-        List<ChatRecommendationResponse> recommendations
+        List<ChatRecommendationResponse> recommendations,
+        ScheduleProposal scheduleProposal
 ) {
     public ChatResponse {
         recommendations = recommendations == null ? List.of() : List.copyOf(recommendations);
@@ -31,6 +35,7 @@ public record ChatResponse(
         return new ChatResponse(result.sessionId(), result.answer(),
                 result.blocked(), result.blockReason(), result.usedTokens(),
                 ChatQuotaResponse.from(result.quota()),
-                result.recommendations().stream().map(ChatRecommendationResponse::from).toList());
+                result.recommendations().stream().map(ChatRecommendationResponse::from).toList(),
+                result.scheduleProposal());
     }
 }

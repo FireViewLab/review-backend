@@ -7,6 +7,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.format.TextStyle;
+import java.util.Locale;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -86,30 +90,54 @@ public class PromptAssembler {
             "RECOMMEND: yes" 일 때 본문에는 같은 분류의 비슷한 상품이 있으면 아래에 보여 드린다는
             정도로만 짧게 안내하고, 필요하면 지금 상품의 리뷰를 근거로 고를 때 볼 점을 덧붙여라.
 
+            [장바구니 예약]
+            사용자가 지금 대화 중인 상품을 정한 날짜나 주기에 장바구니에 담아 달라고 할 때만
+            SCHEDULE 줄에 예약 내용을 적는다. 그 밖의 질문은 모두 "SCHEDULE: none" 이다.
+            형식은 아래 셋 중 하나다. 날짜는 아래 [오늘] 을 기준으로 실제 날짜로 바꿔 적는다.
+            SCHEDULE: once 2026-12-01 09:00 qty=1
+            SCHEDULE: weekly MON 09:00 qty=1
+            SCHEDULE: monthly 1 09:00 qty=1
+            once 는 그 날짜 한 번, weekly 는 매주 그 요일(MON TUE WED THU FRI SAT SUN),
+            monthly 는 매월 그 날(1~31)이다. 시각은 24시간제 한국 시간이고 말하지 않았으면 09:00 이다.
+            수량은 1~10 이고 말하지 않았으면 1 이다. 매일이나 격주처럼 셋에 없는 주기는 지원하지 않으니
+            "SCHEDULE: none" 으로 두고 본문에서 매주나 매월로 바꿔 줄 수 있는지 물어라.
+            대화 중인 상품이 없으면 "SCHEDULE: none" 으로 두고 어떤 상품을 담을지 물어라.
+            예약은 사용자가 답변 아래 버튼을 눌러야 예약이 확정된다. 본문에서 예약을 끝냈다고 말하지 말고,
+            적은 내용을 한 문장으로 확인한 뒤 버튼을 눌러 달라고 안내해라.
+
             [응답 형식]
             반드시 아래 형식으로만 답해라. 앞뒤에 다른 텍스트를 붙이지 마라.
 
             ONTOPIC: yes
             RECOMMEND: no
+            SCHEDULE: none
             ---
             사용자에게 보여줄 답변
 
             첫 줄은 정확히 "ONTOPIC: yes" 또는 "ONTOPIC: no" 여야 한다.
             둘째 줄은 "RECOMMEND: yes" 또는 "RECOMMEND: no" 다. 위 [비슷한 상품 추천] 기준으로 정한다.
-            셋째 줄은 정확히 "---" 세 글자여야 한다.
+            셋째 줄은 SCHEDULE 줄이다. 위 [장바구니 예약] 기준으로 정한다.
+            넷째 줄은 정확히 "---" 세 글자여야 한다.
             그 아래부터가 답변 본문이다. 본문에는 따옴표와 줄바꿈을 써도 되지만,
             위 [본문 서식]에 따라 마크다운 기호는 쓰지 마라. "---" 는 구분 줄에만 쓴다.
 
-            질문이 주제 밖이면 "ONTOPIC: no" 와 "RECOMMEND: no" 로 두고, 본문에는 어떤 주제를 도울 수 있는지
+            질문이 주제 밖이면 "ONTOPIC: no", "RECOMMEND: no", "SCHEDULE: none" 으로 두고, 본문에는 어떤 주제를 도울 수 있는지
             한두 문장으로 안내해라. 주제 밖 질문에는 절대 실제 답을 주지 마라.
             본문은 한국어로, 300자 이내로 간결하게 작성해라.
             """;
 
     private final ObjectMapper objectMapper;
     private final TopicGuard topicGuard;
+    private final Clock clock;
 
+    /** 고정 규칙 뒤에 오늘 날짜를 붙인다. 모델이 "다음 주 금요일" 같은 말을 실제 날짜로 바꾸는 기준이다 */
     public String systemPrompt() {
-        return SYSTEM_PROMPT;
+        LocalDate today = LocalDate.now(clock);
+        return SYSTEM_PROMPT + """
+
+                [오늘]
+                오늘은 %s(%s)이다. 시각은 모두 한국 시간이다.
+                """.formatted(today, today.getDayOfWeek().getDisplayName(TextStyle.SHORT, Locale.KOREAN));
     }
 
     /**

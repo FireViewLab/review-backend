@@ -29,7 +29,7 @@ import java.util.regex.Pattern;
  * 형식을 어긴 응답을 그대로 노출하면 세이프가드 3계층을 우회하는 통로가 되기 때문이다.
  */
 @Slf4j
-public record LlmAnswer(boolean onTopic, String answer, boolean recommend) {
+public record LlmAnswer(boolean onTopic, String answer, boolean recommend, String scheduleValue) {
 
     /** 모델이 형식을 어겼을 때 사용자에게 보여줄 문구 */
     private static final String MALFORMED_FALLBACK =
@@ -42,6 +42,13 @@ public record LlmAnswer(boolean onTopic, String answer, boolean recommend) {
     /** ONTOPIC 다음 줄에 올 수 있는 추천 요청 줄. 값은 무엇이든 받아 두고 yes/true 만 인정한다 */
     private static final Pattern RECOMMEND_LINE =
             Pattern.compile("^\\s*RECOMMEND\\s*[:：]\\s*(.*?)\\s*$", Pattern.CASE_INSENSITIVE);
+
+    /**
+     * 장바구니 예약 요청 줄. 값은 {@code ScheduleRequest} 가 엄격하게 검사한다. 여기서는 받아 두기만 한다.
+     * RECOMMEND 줄과 순서가 바뀌어도 읽는다.
+     */
+    private static final Pattern SCHEDULE_LINE =
+            Pattern.compile("^\\s*SCHEDULE\\s*[:：]\\s*(.*?)\\s*$", Pattern.CASE_INSENSITIVE);
 
     /** 헤더 다음에 오는 구분자 줄 */
     private static final Pattern SEPARATOR = Pattern.compile("^\\s*-{3,}\\s*$", Pattern.MULTILINE);
@@ -61,18 +68,38 @@ public record LlmAnswer(boolean onTopic, String answer, boolean recommend) {
         boolean onTopic = flag.equals("yes") || flag.equals("true");
 
         String rest = text.substring(header.end());
-        Boolean recommendFlag = readRecommendLine(rest);
-        boolean recommend = recommendFlag != null && recommendFlag;
-        if (recommendFlag != null) {
-            rest = rest.substring(nextLineStart(rest, firstContentLineStart(rest)));
+        Boolean recommendFlag = null;
+        String schedule = null;
+        // 헤더 바로 다음 두 줄까지는 RECOMMEND·SCHEDULE 줄일 수 있다. 순서는 가리지 않는다
+        for (int i = 0; i < 2; i++) {
+            int start = firstContentLineStart(rest);
+            if (start < 0) break;
+            String line = lineAt(rest, start);
+            Matcher rec = RECOMMEND_LINE.matcher(line);
+            Matcher sch = SCHEDULE_LINE.matcher(line);
+            if (recommendFlag == null && rec.matches()) {
+                String value = rec.group(1).toLowerCase();
+                recommendFlag = value.equals("yes") || value.equals("true");
+            } else if (schedule == null && sch.matches()) {
+                schedule = sch.group(1).isBlank() ? null : sch.group(1);
+            } else {
+                break;
+            }
+            rest = rest.substring(nextLineStart(rest, start));
         }
+        boolean recommend = recommendFlag != null && recommendFlag;
 
-        String body = removeRecommendLines(extractBody(rest));
+        String body = removeHeaderLines(extractBody(rest));
         if (body.isBlank()) {
             log.warn("[Chat] 본문이 비어 있는 응답");
             return malformed();
         }
-        return new LlmAnswer(onTopic, body, recommend);
+        return new LlmAnswer(onTopic, body, recommend, schedule);
+    }
+
+    /** 주제 안 답변이고 모델이 장바구니 예약 요청을 옮겨 적었는지. 값이 맞는지는 호출자가 검사한다 */
+    public boolean wantsSchedule() {
+        return onTopic && scheduleValue != null && !scheduleValue.equalsIgnoreCase("none");
     }
 
     /** 주제 안 답변이고 모델이 비슷한 상품 추천을 원한다고 판단했는지 */
@@ -81,36 +108,18 @@ public record LlmAnswer(boolean onTopic, String answer, boolean recommend) {
     }
 
     private static LlmAnswer malformed() {
-        return new LlmAnswer(false, MALFORMED_FALLBACK, false);
+        return new LlmAnswer(false, MALFORMED_FALLBACK, false, null);
     }
 
     /**
-     * 헤더 바로 다음(빈 줄은 건너뛴다) 줄이 RECOMMEND 줄이면 그 값을 읽는다.
-     *
-     * @return RECOMMEND 줄이 없으면 null. 있으면 yes/true 일 때만 true, 그 밖의 값은 false
-     */
-    private static Boolean readRecommendLine(String rest) {
-        int start = firstContentLineStart(rest);
-        if (start < 0) {
-            return null;
-        }
-        Matcher m = RECOMMEND_LINE.matcher(lineAt(rest, start));
-        if (!m.matches()) {
-            return null;
-        }
-        String value = m.group(1).toLowerCase();
-        return value.equals("yes") || value.equals("true");
-    }
-
-    /**
-     * 본문에 남은 RECOMMEND 줄을 지운다.
+     * 본문에 남은 RECOMMEND·SCHEDULE 줄을 지운다.
      * 모델이 구분자 아래나 본문 끝에 줄을 잘못 두면 사용자에게 그대로 보이기 때문이다.
-     * 이렇게 지운 줄은 추천 판단에 쓰지 않는다(정해진 자리에 둔 줄만 인정한다).
+     * 이렇게 지운 줄은 추천·예약 판단에 쓰지 않는다(정해진 자리에 둔 줄만 인정한다).
      */
-    private static String removeRecommendLines(String body) {
+    private static String removeHeaderLines(String body) {
         StringBuilder kept = new StringBuilder();
         for (String line : body.split("\n", -1)) {
-            if (RECOMMEND_LINE.matcher(line).matches()) {
+            if (RECOMMEND_LINE.matcher(line).matches() || SCHEDULE_LINE.matcher(line).matches()) {
                 continue;
             }
             if (!kept.isEmpty()) {

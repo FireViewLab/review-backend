@@ -55,7 +55,7 @@ import static org.mockito.Mockito.when;
 })
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @Import({ChatService.class, ChatRecommendationService.class, PromptAssembler.class, TopicGuard.class,
-        ChatPlanPolicy.class, ChatQuotaStore.class, JacksonAutoConfiguration.class})
+        ChatPlanPolicy.class, ChatQuotaStore.class, JacksonAutoConfiguration.class, com.example.fireview.global.config.ClockConfig.class})
 class ChatRecommendationConnectionPoolTest {
 
     private static final String EMAIL = "pool@test.com";
@@ -69,6 +69,7 @@ class ChatRecommendationConnectionPoolTest {
     @Autowired DataSource dataSource;
 
     @MockitoBean LlmClient llmClient;
+    @MockitoBean com.example.fireview.domain.cartschedule.service.CartScheduleService cartScheduleService;
     @MockitoBean ProductAnalysisPort productAnalysisPort;
     @MockitoBean UserService userService;
 

@@ -53,6 +53,11 @@ public enum ErrorCode {
     CHAT_QUOTA_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "오늘 사용할 수 있는 챗봇 메시지를 모두 사용했습니다. 요금제를 올리면 더 많이 이용할 수 있습니다."),
     CHAT_PLAN_REQUIRED(HttpStatus.FORBIDDEN, "프로 요금제에서 이용할 수 있는 기능입니다."),
 
+    // Cart schedule
+    CART_SCHEDULE_NOT_FOUND(HttpStatus.NOT_FOUND, "장바구니 예약을 찾을 수 없습니다."),
+    CART_SCHEDULE_FORBIDDEN(HttpStatus.FORBIDDEN, "본인의 장바구니 예약만 바꿀 수 있습니다."),
+    CART_SCHEDULE_NOT_CONFIRMABLE(HttpStatus.CONFLICT, "확인할 수 없는 예약입니다. 챗봇에 다시 요청해주세요."),
+
     // Common
     INVALID_INPUT(HttpStatus.BAD_REQUEST, "입력값이 올바르지 않습니다."),
     RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "요청한 경로를 찾을 수 없습니다."),

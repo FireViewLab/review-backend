@@ -230,4 +230,47 @@ class LlmAnswerTest {
         assertThat(parsed.onTopic()).isFalse();
         assertThat(parsed.wantsRecommendations()).isFalse();
     }
+    @Test
+    void RECOMMEND_다음_SCHEDULE_줄을_읽는다() {
+        LlmAnswer parsed = LlmAnswer.parse(
+                "ONTOPIC: yes\nRECOMMEND: no\nSCHEDULE: weekly MON 09:00 qty=1\n---\n아래 버튼을 누르면 예약돼요.");
+
+        assertThat(parsed.scheduleValue()).isEqualTo("weekly MON 09:00 qty=1");
+        assertThat(parsed.answer()).isEqualTo("아래 버튼을 누르면 예약돼요.");
+        assertThat(parsed.wantsRecommendations()).isFalse();
+    }
+
+    @Test
+    void SCHEDULE_줄이_RECOMMEND_보다_먼저_와도_둘_다_읽는다() {
+        LlmAnswer parsed = LlmAnswer.parse(
+                "ONTOPIC: yes\nSCHEDULE: monthly 1 09:00 qty=2\nRECOMMEND: yes\n---\n본문");
+
+        assertThat(parsed.scheduleValue()).isEqualTo("monthly 1 09:00 qty=2");
+        assertThat(parsed.recommend()).isTrue();
+    }
+
+    @Test
+    void SCHEDULE_줄이_없으면_예약_값은_null이다() {
+        LlmAnswer parsed = LlmAnswer.parse("ONTOPIC: yes\nRECOMMEND: no\n---\n본문");
+
+        assertThat(parsed.scheduleValue()).isNull();
+        assertThat(parsed.answer()).isEqualTo("본문");
+    }
+
+    @Test
+    void 본문에_섞인_SCHEDULE_줄은_지우고_예약에_쓰지_않는다() {
+        LlmAnswer parsed = LlmAnswer.parse(
+                "ONTOPIC: yes\nRECOMMEND: no\n---\n본문\nSCHEDULE: weekly MON 09:00 qty=1");
+
+        assertThat(parsed.scheduleValue()).isNull();
+        assertThat(parsed.answer()).isEqualTo("본문");
+    }
+
+    @Test
+    void 주제이탈이면_SCHEDULE_이_있어도_예약하지_않는다() {
+        LlmAnswer parsed = LlmAnswer.parse(
+                "ONTOPIC: no\nRECOMMEND: no\nSCHEDULE: weekly MON 09:00 qty=1\n---\n안내");
+
+        assertThat(parsed.wantsSchedule()).isFalse();
+    }
 }

@@ -58,6 +58,13 @@ class ChatServiceTest {
     @Mock LlmClient llmClient;
     @Mock UserService userService;
     @Mock ChatRecommendationService recommendationService;
+    @Mock com.example.fireview.domain.cartschedule.service.CartScheduleService cartScheduleService;
+
+    /** 2026-11-22 일요일 오후 3시(한국) */
+    private static final java.time.Clock CLOCK = java.time.Clock.fixed(
+            java.time.Instant.parse("2026-11-22T06:00:00Z"), java.time.ZoneId.of("Asia/Seoul"));
+    private final com.example.fireview.domain.cartschedule.dto.ScheduleProposal proposal =
+            new com.example.fireview.domain.cartschedule.dto.ScheduleProposal(55L, "매주 월요일 오전 9시 · 1개", "샘플 상품");
 
     private ChatService service;
     private ChatQuotaStore quotaStore;
@@ -90,7 +97,7 @@ class ChatServiceTest {
     void setUp() {
         ObjectMapper objectMapper = new ObjectMapper();
         TopicGuard guard = new TopicGuard();
-        PromptAssembler assembler = new PromptAssembler(objectMapper, guard);
+        PromptAssembler assembler = new PromptAssembler(objectMapper, guard, java.time.Clock.systemDefaultZone());
 
         // 정책과 카운터는 목이 아니라 실물을 쓴다. 하루 5개 제한이 실제로 걸리는지를
         // 봐야 하는데 목으로 대체하면 스텁이 그 답을 미리 정해버린다.
@@ -100,7 +107,7 @@ class ChatServiceTest {
 
         service = new ChatService(sessionRepository, messageRepository, productAnalysisPort,
                 assembler, guard, llmClient, userService, planPolicy, quotaStore,
-                recommendationService, transactionOperations);
+                recommendationService, transactionOperations, cartScheduleService, CLOCK);
 
         user = User.builder().id(1L).email(EMAIL).nickname("tester").build();
         when(userService.findByEmail(EMAIL)).thenReturn(user);
@@ -520,5 +527,60 @@ class ChatServiceTest {
     private void givenLlmReturns(String raw, int inputTokens, int outputTokens) {
         when(llmClient.complete(anyString(), any(), anyString(), any()))
                 .thenReturn(new LlmClient.LlmResponse(raw, inputTokens, outputTokens));
+    }
+    @Test
+    void SCHEDULE_줄이_있으면_대화_상품으로_예약_제안을_붙인다() {
+        givenLlmReturns("ONTOPIC: yes\nRECOMMEND: no\nSCHEDULE: weekly MON 09:00 qty=1\n---\n매주 월요일 오전 9시에 1개 담을게요. 아래 버튼을 눌러 주세요.", 1800, 60);
+        when(cartScheduleService.propose(any(), anyString(), any(), any())).thenAnswer(inv -> {
+            // 예약도 추천처럼 대화를 저장한 트랜잭션이 끝난 뒤에 만든다
+            assertThat(inConversationTransaction).isFalse();
+            return Optional.of(proposal);
+        });
+
+        ChatService.ChatResult result =
+                service.ask(EMAIL, ChatTier.STANDARD, null, PRODUCT_ID, "매주 월요일마다 이거 담아줘");
+
+        assertThat(result.scheduleProposal()).isEqualTo(proposal);
+        assertThat(result.answer()).doesNotContain("SCHEDULE");
+        verify(cartScheduleService).propose(any(), org.mockito.ArgumentMatchers.eq(PRODUCT_ID),
+                org.mockito.ArgumentMatchers.eq("샘플 상품"),
+                org.mockito.ArgumentMatchers.eq(new com.example.fireview.domain.cartschedule.ScheduleRequest(
+                        com.example.fireview.domain.cartschedule.ScheduleRule.weekly(
+                                java.time.DayOfWeek.MONDAY, java.time.LocalTime.of(9, 0)), 1)));
+    }
+
+    @Test
+    void SCHEDULE_값이_형식에_어긋나면_예약을_제안하지_않는다() {
+        givenLlmReturns("ONTOPIC: yes\nRECOMMEND: no\nSCHEDULE: daily 09:00 qty=1\n---\n매일은 어려워요.", 1800, 60);
+
+        ChatService.ChatResult result =
+                service.ask(EMAIL, ChatTier.STANDARD, null, PRODUCT_ID, "매일 담아줘");
+
+        assertThat(result.scheduleProposal()).isNull();
+        verify(cartScheduleService, never()).propose(any(), any(), any(), any());
+    }
+
+    @Test
+    void 주제_밖_답변이면_SCHEDULE_이_있어도_예약하지_않는다() {
+        givenLlmReturns("ONTOPIC: no\nRECOMMEND: no\nSCHEDULE: weekly MON 09:00 qty=1\n---\n상품과 리뷰에 대해서만 도와드릴 수 있어요.", 900, 40);
+
+        ChatService.ChatResult result =
+                service.ask(EMAIL, ChatTier.STANDARD, null, PRODUCT_ID, "파이썬 코드 짜줘");
+
+        assertThat(result.scheduleProposal()).isNull();
+        verify(cartScheduleService, never()).propose(any(), any(), any(), any());
+    }
+
+    @Test
+    void 예약_제안이_실패해도_답변은_나간다() {
+        givenLlmReturns("ONTOPIC: yes\nRECOMMEND: no\nSCHEDULE: weekly MON 09:00 qty=1\n---\n아래 버튼을 눌러 주세요.", 1800, 60);
+        when(cartScheduleService.propose(any(), anyString(), any(), any())).thenThrow(new IllegalStateException("db down"));
+
+        ChatService.ChatResult result =
+                service.ask(EMAIL, ChatTier.STANDARD, null, PRODUCT_ID, "매주 월요일마다 담아줘");
+
+        assertThat(result.blocked()).isFalse();
+        assertThat(result.answer()).isEqualTo("아래 버튼을 눌러 주세요.");
+        assertThat(result.scheduleProposal()).isNull();
     }
 }
