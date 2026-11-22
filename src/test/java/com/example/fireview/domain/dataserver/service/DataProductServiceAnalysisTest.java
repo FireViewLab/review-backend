@@ -301,6 +301,22 @@ class DataProductServiceAnalysisTest {
     }
 
     @Test
+    void v2_리뷰는_화면이_읽는_v3_이름으로도_점수와_등급을_내려준다() {
+        // 배포된 화면은 v2 계약 리뷰에서 policyIndexV3·evidenceLevelV3 를 읽는다. rti·level 로만 보내면
+        // 점수를 못 찾아 모든 리뷰를 "계산 불가"로 셌다
+        DataProductResponse res = callWith("product-analysis-v2-done.json");
+
+        DataReview r1 = review(res, "r-1");
+        assertThat(r1.policyIndexV3()).isEqualTo(80.4);
+        assertThat(r1.evidenceLevelV3()).isEqualTo("SAFE");
+        assertThat(r1.rti()).isEqualTo(80.4);
+
+        DataReview r3 = review(res, "r-3");
+        assertThat(r3.policyIndexV3()).isNull();
+        assertThat(r3.evidenceLevelV3()).isNull();
+    }
+
+    @Test
     void v4_결과를_v3_필드와_따로_내려준다() {
         // #255: 화면 등급·지수는 v4 를 쓰고, rti·level·reasons 는 되돌리기용으로 그대로 둔다
         DataProductResponse res = callWith("product-analysis-v2-done.json");

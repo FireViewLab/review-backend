@@ -177,6 +177,8 @@ public class DataProductService {
                 analysis == null ? null : analysis.rti(),
                 analysis == null ? null : analysis.level(),
                 analysis == null ? List.of() : analysis.reasons(),
+                analysis == null ? null : analysis.policyIndexV3(),
+                analysis == null ? null : analysis.evidenceLevelV3(),
                 analysis == null ? null : analysis.levelV4(),
                 analysis == null ? null : analysis.policyIndexV4(),
                 analysis == null ? null : analysis.textScoreV4(),
