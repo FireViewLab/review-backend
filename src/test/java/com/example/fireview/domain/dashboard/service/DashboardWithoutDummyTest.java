@@ -102,7 +102,7 @@ class DashboardWithoutDummyTest {
     void 대시보드_상품에_분석_상태가_실린다() {
         real.observeAnalysisStatus(AnalysisStatus.DONE, LocalDateTime.now());
         real.setAvgRti(80.0);
-        real.setAnalysisReviewCount(DashboardService.MIN_ANALYZED_REVIEWS);
+        real.setAnalysisScoredReviewCount(DashboardService.MIN_ANALYZED_REVIEWS);
         productRepository.saveAndFlush(real);
 
         JsonNode json = new ObjectMapper().valueToTree(dashboardService.getPublicDashboard());

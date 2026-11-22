@@ -47,7 +47,7 @@ class DashboardReviewDataTest {
     private Product analyzed(long id, Category category, double rti, int reviews) {
         Product p = Product.builder().id(id).name("상품" + id).platform("KURLY")
                 .dataPlatform("kurly").dataProductId(String.valueOf(id)).category(category)
-                .avgRti(rti).analysisReviewCount(reviews).build();
+                .avgRti(rti).analysisScoredReviewCount(reviews).build();
         p.observeAnalysisStatus(AnalysisStatus.DONE, LocalDateTime.now());
         return productRepository.save(p);
     }
