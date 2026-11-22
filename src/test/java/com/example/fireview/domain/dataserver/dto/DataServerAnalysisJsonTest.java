@@ -174,6 +174,66 @@ class DataServerAnalysisJsonTest {
     }
 
     @Test
+    void v4_필드를_읽고_v3_자리로_옮기지_않는다() {
+        // #255: 화면은 v4 를 읽는다. rti·level·reasons 는 v3.1 그대로 남아야 되돌릴 수 있다
+        var results = DataServerFixtures.load("product-analysis-v2-done.json").analysis().resultsByReviewId();
+
+        DataServerReviewAnalysis r2 = results.get("r-2");
+        assertThat(r2.levelV4()).isEqualTo("WARN");
+        assertThat(r2.policyIndexV4()).isEqualTo(52.0);
+        assertThat(r2.textScoreV4()).isEqualTo(55.0);
+        assertThat(r2.textProbabilityV4()).isEqualTo(0.41);
+        assertThat(r2.modelVersionV4()).isEqualTo("ptext-koelectra-v4.0");
+        assertThat(r2.policyVersionV4()).isEqualTo("text-first-v1");
+        assertThat(r2.rti()).isEqualTo(35.0);
+        assertThat(r2.level()).isEqualTo("danger");
+    }
+
+    @Test
+    void v4가_아직_없으면_v3로_채우지_않는다() {
+        DataServerReviewAnalysis r3 = DataServerFixtures.load("product-analysis-v2-done.json")
+                .analysis().resultsByReviewId().get("r-3");
+
+        assertThat(r3.levelV4()).isNull();
+        assertThat(r3.policyIndexV4()).isNull();
+        assertThat(r3.textProbabilityV4()).isNull();
+    }
+
+    @Test
+    void v4_범위_밖_값과_모르는_등급은_null로_바꾼다() throws JsonProcessingException {
+        DataServerReviewAnalysis r = DataServerFixtures.MAPPER.readValue("""
+                {"review_id": "r-9", "level_v4": " warn ", "policy_index_v4": -1,
+                 "text_score_v4": -1, "text_probability_v4": 1.5}
+                """, DataServerReviewAnalysis.class);
+        DataServerReviewAnalysis unknown = DataServerFixtures.MAPPER.readValue("""
+                {"review_id": "r-10", "level_v4": "SUSPICIOUS", "text_probability_v4": -0.1}
+                """, DataServerReviewAnalysis.class);
+
+        assertThat(r.levelV4()).isEqualTo("WARN");
+        assertThat(r.policyIndexV4()).isNull();
+        assertThat(r.textScoreV4()).isNull();
+        assertThat(r.textProbabilityV4()).isNull();
+        assertThat(unknown.levelV4()).isNull();
+        assertThat(unknown.textProbabilityV4()).isNull();
+    }
+
+    @Test
+    void 카탈로그_v4_평균과_대문자_키_등급_분포를_읽는다() throws JsonProcessingException {
+        DataServerCatalogPage page = DataServerFixtures.MAPPER.readValue("""
+                {"items": [{"product": {"platform": "kurly", "product_id": "p"},
+                  "analysis": {"status": "done", "avg_policy_index_v3": 45.0, "contract_version": "v2",
+                    "avg_policy_index_v4": 81.0,
+                    "v4_level_counts": {"SAFE": 2, "WARN": 1, "DANGER": 0}}}],
+                 "next_cursor": null}
+                """, DataServerCatalogPage.class);
+
+        DataServerCatalogPage.Analysis a = page.items().get(0).analysis();
+        assertThat(a.avgPolicyIndexV4()).isEqualTo(81.0);
+        assertThat(a.v4LevelCounts()).isEqualTo(new DataServerCatalogPage.LevelCounts(2, 1, 0));
+        assertThat(a.avgScore()).isEqualTo(45.0);
+    }
+
+    @Test
     void 계약을_모르는_구버전_응답은_v0_5로_읽는다() {
         DataServerAnalysis analysis = DataServerFixtures.load("product-analysis-done.json").analysis();
 

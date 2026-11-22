@@ -28,4 +28,6 @@ Flutter 홈·검색 배지는 실제 점수와 분석 대기/분석 중/실패/�
 
 운영은 DATA_CATALOG_SYNC_ENABLED=true(기본), 주기300000ms다. Data 배포 후 Spring을 배포한다.
 목록 필드 analysisSampled/analysisReviewCount/analysisSourceReviewCount는 nullable 추가 컬럼이다.
+v4.0 목록 필드 avgPolicyIndexV4·v4LevelCounts(#255)도 nullable 추가 컬럼(avg_policy_index_v4, v4_safe_count, v4_warn_count, v4_danger_count)이다.
+v4 값이 범위를 벗어나면 상품은 그대로 저장하고 v4 값만 비운다. 완료가 아닌 상태가 되면 v3 평균과 함께 지운다.
 기존 행은 첫 동기화로 채우며 원본 리뷰·리뷰별 점수는 Data에 유지한다.

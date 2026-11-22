@@ -51,7 +51,12 @@ public record ProductResponse(
         AnalysisStatus analysisStatus,     // Data에서 마지막으로 확인한 분석 상태
         Boolean analysisSampled,
         Integer analysisReviewCount,
-        Integer analysisSourceReviewCount
+        Integer analysisSourceReviewCount,
+
+        // ── v4.0 텍스트 모델 결과(#255). 화면 지수·등급 분포는 이 값을 쓴다 ──
+        // v4 가 아직 없으면 null. avgRti(v3.1)로 대신 채우지 않는다 — 프론트가 "분석 중"으로 그린다
+        Double avgPolicyIndexV4,           // 상품 평균 지수(0~100)
+        ReviewLevelCounts v4LevelCounts    // {SAFE, WARN, DANGER} 리뷰 수
 ) {
     /**
      * 네이버 쇼핑 검색 결과 아이템 → ProductResponse 변환.
@@ -93,7 +98,8 @@ public record ProductResponse(
                 item.mallName().isBlank() ? "NAVER" : item.mallName(),
                 item.link(),                    // AI 분석 요청 시 productUrl로 사용
                 null, null, null,
-                null, null, null, null
+                null, null, null, null,
+                null, null
         );
     }
 
@@ -143,7 +149,10 @@ public record ProductResponse(
                 product.getAnalysisStatus(),
                 product.getAnalysisSampled(),
                 product.getAnalysisReviewCount(),
-                product.getAnalysisSourceReviewCount()
+                product.getAnalysisSourceReviewCount(),
+                product.getAvgPolicyIndexV4(),
+                ReviewLevelCounts.of(product.getV4SafeCount(), product.getV4WarnCount(),
+                        product.getV4DangerCount())
         );
     }
 

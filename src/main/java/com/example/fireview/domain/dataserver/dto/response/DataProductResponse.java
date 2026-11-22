@@ -116,6 +116,18 @@ public record DataProductResponse(
      * @param level   이 리뷰의 등급 {@code safe}/{@code warn}/{@code danger}. v2 의 대문자 등급도 소문자로 맞춘다.
      *                결과가 없거나 계산 불가면 null
      * @param reasons 판단 근거. v2 계약이면 한국어 설명 문장. 결과가 없으면 빈 배열
+     *
+     * <p><b>{@code *V4} 는 v4.0 텍스트 모델 결과다(#255).</b> 화면 등급·지수는 이 값을 쓴다.
+     * {@code rti}·{@code level}·{@code reasons} 는 v3.1 그대로 남아 되돌릴 때 쓴다.
+     * v4 가 아직 채워지지 않은 리뷰는 v4 필드가 전부 null 이고, v3 값으로 대신 채우지 않는다.
+     * v3.1 설명({@code reasons})은 v3.1 등급 기준이라 v4 등급과 함께 보여주지 않는다.
+     *
+     * @param levelV4           v4.0 등급 {@code SAFE}/{@code WARN}/{@code DANGER}. 대문자. 없으면 null
+     * @param policyIndexV4     v4.0 정책 지수(0~100). SAFE 70~100, WARN 40~69, DANGER 0~39. 없으면 null
+     * @param textScoreV4       v4.0 본문 점수(0~100). 높을수록 신뢰. 없으면 null
+     * @param textProbabilityV4 v4.0 의심 확률(0~1). 없으면 null
+     * @param modelVersionV4    v4.0 모델 버전. 없으면 null
+     * @param policyVersionV4   v4.0 규칙 버전. 없으면 null
      */
     public record DataReview(
             String reviewId,
@@ -128,7 +140,13 @@ public record DataProductResponse(
             Integer helpfulCount,
             Double rti,
             String level,
-            List<String> reasons
+            List<String> reasons,
+            String levelV4,
+            Double policyIndexV4,
+            Double textScoreV4,
+            Double textProbabilityV4,
+            String modelVersionV4,
+            String policyVersionV4
     ) {}
 
     /**

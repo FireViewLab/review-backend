@@ -299,4 +299,23 @@ class DataProductServiceAnalysisTest {
         assertThat(r1.level()).isEqualTo("safe");
         assertThat(r1.reasons()).containsExactly("구체적인 사용 경험이 담겨 있어 신뢰할 만한 리뷰입니다.");
     }
+
+    @Test
+    void v4_결과를_v3_필드와_따로_내려준다() {
+        // #255: 화면 등급·지수는 v4 를 쓰고, rti·level·reasons 는 되돌리기용으로 그대로 둔다
+        DataProductResponse res = callWith("product-analysis-v2-done.json");
+
+        DataReview r1 = review(res, "r-1");
+        assertThat(r1.levelV4()).isEqualTo("SAFE");
+        assertThat(r1.policyIndexV4()).isEqualTo(88.0);
+        assertThat(r1.textScoreV4()).isEqualTo(91.5);
+        assertThat(r1.textProbabilityV4()).isEqualTo(0.08);
+        assertThat(r1.modelVersionV4()).isEqualTo("ptext-koelectra-v4.0");
+        assertThat(r1.policyVersionV4()).isEqualTo("text-first-v1");
+        assertThat(r1.rti()).isEqualTo(80.4);
+
+        DataReview r3 = review(res, "r-3");
+        assertThat(r3.levelV4()).isNull();
+        assertThat(r3.policyIndexV4()).isNull();
+    }
 }

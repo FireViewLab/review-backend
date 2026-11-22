@@ -63,7 +63,11 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     @Query("""
             UPDATE Product p
             SET p.analysisStatus = :status, p.analysisStatusAt = :observedAt,
-                p.avgRti = CASE WHEN :status = 'DONE' THEN p.avgRti ELSE NULL END
+                p.avgRti = CASE WHEN :status = 'DONE' THEN p.avgRti ELSE NULL END,
+                p.avgPolicyIndexV4 = CASE WHEN :status = 'DONE' THEN p.avgPolicyIndexV4 ELSE NULL END,
+                p.v4SafeCount = CASE WHEN :status = 'DONE' THEN p.v4SafeCount ELSE NULL END,
+                p.v4WarnCount = CASE WHEN :status = 'DONE' THEN p.v4WarnCount ELSE NULL END,
+                p.v4DangerCount = CASE WHEN :status = 'DONE' THEN p.v4DangerCount ELSE NULL END
             WHERE p.dataPlatform = :dataPlatform AND p.dataProductId = :dataProductId
               AND (p.analysisStatus IS NULL OR p.analysisStatus <> :status)
             """)
@@ -77,14 +81,18 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     @Query("""
             UPDATE Product p SET p.analysisStatus = :status, p.analysisStatusAt = :observedAt,
                 p.avgRti = :avgRti, p.analysisSampled = :sampled,
-                p.analysisReviewCount = :reviewCount, p.analysisSourceReviewCount = :sourceReviewCount
+                p.analysisReviewCount = :reviewCount, p.analysisSourceReviewCount = :sourceReviewCount,
+                p.avgPolicyIndexV4 = :avgPolicyIndexV4, p.v4SafeCount = :v4SafeCount,
+                p.v4WarnCount = :v4WarnCount, p.v4DangerCount = :v4DangerCount
             WHERE p.dataPlatform = :dataPlatform AND p.dataProductId = :dataProductId
             """)
     int updateAnalysisSummary(@Param("dataPlatform") String platform,
             @Param("dataProductId") String productId, @Param("status") String status,
             @Param("observedAt") LocalDateTime observedAt, @Param("avgRti") Double avgRti,
             @Param("sampled") Boolean sampled, @Param("reviewCount") Integer reviewCount,
-            @Param("sourceReviewCount") Integer sourceReviewCount);
+            @Param("sourceReviewCount") Integer sourceReviewCount,
+            @Param("avgPolicyIndexV4") Double avgPolicyIndexV4, @Param("v4SafeCount") Integer v4SafeCount,
+            @Param("v4WarnCount") Integer v4WarnCount, @Param("v4DangerCount") Integer v4DangerCount);
 
     /** 홈 목록 후보. Data 서버 상품만, 최근에 들어온 순. 이 중에서 분야를 섞어 고른다 */
     List<Product> findTop300ByDataPlatformIsNotNullOrderByCreatedAtDesc();
