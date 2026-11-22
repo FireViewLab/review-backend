@@ -157,6 +157,46 @@ class DataProductCatalogServiceTest {
     }
 
     @Test
+    void 실시간_검색이_비면_저장된_상품으로_대신한다() {
+        // 수집이 멈추면 Data 는 몰 검색을 거절하지만, 이미 모은 상품은 남아 있다
+        when(client.searchProducts(anyString(), anyString(), anyInt())).thenReturn(List.of());
+        ProductResponse stored = ProductResponse.from(com.example.fireview.domain.product.entity.Product.builder()
+                .id(1L).name("토리든 마스크팩").platform("KURLY").dataPlatform("kurly").dataProductId("1").build());
+        when(registry.findStoredForDisplay("마스크팩", 20)).thenReturn(List.of(stored));
+
+        List<ProductResponse> res = service("kurly,oliveyoung", 2000).search("마스크팩");
+
+        assertThat(res).containsExactly(stored);
+        verify(registry, never()).upsertAllForDisplay(anyList());
+    }
+
+    @Test
+    void 실시간_결과가_있으면_저장된_상품을_찾지_않는다() {
+        when(client.searchProducts(eq("kurly"), anyString(), anyInt())).thenReturn(List.of(p("kurly", "1")));
+        when(registry.upsertAllForDisplay(anyList())).thenReturn(List.of(ProductResponse.from(
+                com.example.fireview.domain.product.entity.Product.builder().id(1L).name("실시간")
+                        .platform("KURLY").dataPlatform("kurly").dataProductId("1").build())));
+
+        assertThat(service("kurly", 2000).search("마스크팩")).hasSize(1);
+
+        verify(registry, never()).findStoredForDisplay(anyString(), anyInt());
+    }
+
+    @Test
+    void 몰당_건수를_정한_검색은_저장된_상품으로_대신하지_않는다() {
+        // 홈 자동 채우기가 쓰는 경로다. 새로 채운 수를 세므로 저장된 상품이 섞이면 안 된다
+        when(client.searchProducts(anyString(), anyString(), anyInt())).thenReturn(List.of());
+
+        assertThat(service("kurly", 2000).search("마스크팩", 3)).isEmpty();
+        verify(registry, never()).findStoredForDisplay(anyString(), anyInt());
+    }
+
+    @Test
+    void LIKE_특수_문자는_글자로_찾게_바꾼다() {
+        assertThat(ProductTagRegistry.escapeLike("100%_a\\b")).isEqualTo("100\\%\\_a\\\\b");
+    }
+
+    @Test
     void 검색_대상_몰이_비면_쓰지_않는다() {
         assertThat(service(" , ", 2000).isEnabled()).isFalse();
     }
