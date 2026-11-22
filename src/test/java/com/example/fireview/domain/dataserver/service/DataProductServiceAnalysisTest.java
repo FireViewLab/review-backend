@@ -361,6 +361,22 @@ class DataProductServiceAnalysisTest {
     }
 
     @Test
+    void v2_리뷰는_설명을_화면이_읽는_이름으로도_싣는다() {
+        // v2 화면은 reasons 를 읽지 않는다. 설명을 reasons 에만 두면 "요약할 근거가 없다"로 보였다
+        DataProductResponse res = callWith("product-analysis-v2-done.json");
+
+        DataReview r1 = review(res, "r-1");
+        assertThat(r1.analysisSummaryKo()).isEqualTo("구체적인 사용 경험이 담겨 있어 신뢰할 만한 리뷰입니다.");
+        assertThat(r1.rulesReasonsKo()).containsExactly("사용 경험이 구체적입니다.");
+        assertThat(r1.evidenceReasonsV3()).containsExactly("RATING_VERIFIED");
+        assertThat(r1.reasonSource()).isEqualTo("groq");
+
+        DataReview r2 = review(res, "r-2");
+        assertThat(r2.analysisSummaryKo()).isNull();
+        assertThat(r2.rulesReasonsKo()).containsExactly("내용이 매우 짧습니다.", "구체적인 근거가 없습니다.");
+    }
+
+    @Test
     void v4_결과를_v3_필드와_따로_내려준다() {
         // #255: 화면 등급·지수는 v4 를 쓰고, rti·level·reasons 는 되돌리기용으로 그대로 둔다
         DataProductResponse res = callWith("product-analysis-v2-done.json");
