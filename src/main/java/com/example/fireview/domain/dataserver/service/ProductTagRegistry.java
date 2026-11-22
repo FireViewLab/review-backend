@@ -195,11 +195,32 @@ public class ProductTagRegistry {
                 continue;
             }
             upsertForDisplay(p);
+            // v4 는 추가 필드라 값이 이상해도 상품을 건너뛰지 않고 v4 만 비운다(#255)
+            boolean done = status == AnalysisStatus.DONE;
+            Double avgV4 = done ? validIndex(a.avgPolicyIndexV4()) : null;
+            DataServerCatalogPage.LevelCounts countsV4 = done ? validCounts(a.v4LevelCounts()) : null;
             productRepository.updateAnalysisSummary(p.platform(), p.productId(), status.name(),
-                    LocalDateTime.now(), avg, a.sampled(), a.reviewCount(), a.sourceReviewCount());
+                    LocalDateTime.now(), avg, a.sampled(), a.reviewCount(), a.sourceReviewCount(),
+                    avgV4,
+                    countsV4 == null ? null : countsV4.safe(),
+                    countsV4 == null ? null : countsV4.warn(),
+                    countsV4 == null ? null : countsV4.danger());
             saved++;
         }
         return saved;
+    }
+
+    private static Double validIndex(Double index) {
+        return index == null || !Double.isFinite(index) || index < 0 || index > 100 ? null : index;
+    }
+
+    /** 셋 중 하나라도 비었거나 음수면 통째로 버린다. 일부만 있는 분포는 화면이 잘못 그린다 */
+    private static DataServerCatalogPage.LevelCounts validCounts(DataServerCatalogPage.LevelCounts counts) {
+        if (counts == null || counts.safe() == null || counts.warn() == null || counts.danger() == null
+                || counts.safe() < 0 || counts.warn() < 0 || counts.danger() < 0) {
+            return null;
+        }
+        return counts;
     }
 
     private static String truncate(String value, int max) {

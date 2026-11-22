@@ -123,6 +123,15 @@ public class Product {
     private Integer analysisReviewCount;
     private Integer analysisSourceReviewCount;
 
+    /**
+     * v4.0 텍스트 모델의 상품 평균 지수와 등급별 리뷰 수(#255). v4 가 아직 없으면 null.
+     * v3.1 평균은 {@link #avgRti} 에 그대로 두어 되돌릴 수 있게 한다. 서로 대신 채우지 않는다.
+     */
+    private Double avgPolicyIndexV4;
+    private Integer v4SafeCount;
+    private Integer v4WarnCount;
+    private Integer v4DangerCount;
+
     /** 멀티 플랫폼 구매 링크 (NAVER, COUPANG, 11ST 등) */
     @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(name = "product_platform_links",

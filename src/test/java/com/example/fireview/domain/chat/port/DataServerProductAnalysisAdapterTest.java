@@ -420,7 +420,8 @@ class DataServerProductAnalysisAdapterTest {
     void v2_결과도_점수와_등급을_싣는다() {
         // #250: v2 결과는 rti·level 이 비어 온다. 옮기지 않으면 챗봇이 모든 리뷰를 미분석으로 본다
         DataServerReviewAnalysis v2 = new DataServerReviewAnalysis("a", null, null, 80.0, null, null, List.of(),
-                35.0, "DANGER", null, List.of("내용이 매우 짧습니다."), List.of("TEXT_SHORT"), "rules");
+                35.0, "DANGER", null, List.of("내용이 매우 짧습니다."), List.of("TEXT_SHORT"), "rules",
+                null, null, null, null, null, null);
         when(dataServerClient.findProduct(any())).thenReturn(Optional.of(new DataServerProductResponse("fresh",
                 product(null), new DataServerProductResponse.Reviews(List.of(review("a", "별로")), null), null,
                 new DataServerAnalysis("done", null, "hash", "v3.1", "policy-v3", 208, false, 208, "v2",

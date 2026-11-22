@@ -24,6 +24,15 @@ import java.util.Locale;
  * @param rulesReasonsKo    v2 상세 근거 문장. 한 문단 설명이 없을 때 대신 보여 준다
  * @param evidenceReasonsV3 v2 근거 코드
  * @param reasonSource      설명을 만든 곳 {@code python}/{@code groq}/{@code rules}
+ * @param levelV4             v4.0 등급 {@code SAFE}/{@code WARN}/{@code DANGER}. 아직 채워지지 않았으면 null(#255)
+ * @param policyIndexV4       v4.0 정책 지수(0~100). 등급 구간 안의 값이다. 없으면 null
+ * @param textScoreV4         v4.0 본문 점수(0~100). 높을수록 신뢰. 없으면 null
+ * @param textProbabilityV4   v4.0 의심 확률(0~1). 없거나 범위 밖이면 null
+ * @param modelVersionV4      v4.0 모델 버전 (예: {@code ptext-koelectra-v4.0})
+ * @param policyVersionV4     v4.0 규칙 버전 (예: {@code text-first-v1})
+ *
+ * <p>v4 필드는 {@link #forContract(String)} 가 옮기지 않는다. {@code rti}·{@code level}·{@code reasons} 는
+ * v3.1 그대로 두어 프론트가 읽는 키만 바꿔 되돌릴 수 있게 한다. v4 가 null 이어도 v3 값으로 채우지 않는다.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record DataServerReviewAnalysis(
@@ -39,7 +48,13 @@ public record DataServerReviewAnalysis(
         @JsonProperty("analysis_summary_ko") String analysisSummaryKo,
         @JsonProperty("rules_reasons_ko") List<String> rulesReasonsKo,
         @JsonProperty("evidence_reasons_v3") List<String> evidenceReasonsV3,
-        @JsonProperty("reason_source") String reasonSource
+        @JsonProperty("reason_source") String reasonSource,
+        @JsonProperty("level_v4") String levelV4,
+        @JsonProperty("policy_index_v4") Double policyIndexV4,
+        @JsonProperty("text_score_v4") Double textScoreV4,
+        @JsonProperty("text_probability_v4") Double textProbabilityV4,
+        @JsonProperty("model_version_v4") String modelVersionV4,
+        @JsonProperty("policy_version_v4") String policyVersionV4
 ) {
 
     public static final String CONTRACT_V2 = "v2";
@@ -53,12 +68,17 @@ public record DataServerReviewAnalysis(
         policyIndexV3 = knownScore(policyIndexV3);
         rulesReasonsKo = rulesReasonsKo == null ? List.of() : rulesReasonsKo;
         evidenceReasonsV3 = evidenceReasonsV3 == null ? List.of() : evidenceReasonsV3;
+        levelV4 = upperLevel(levelV4);
+        policyIndexV4 = knownScore(policyIndexV4);
+        textScoreV4 = knownScore(textScoreV4);
+        textProbabilityV4 = knownProbability(textProbabilityV4);
     }
 
     /** v0.5 결과용. v2 필드는 비워 둔다 */
     public static DataServerReviewAnalysis v05(String reviewId, Double rti, String level, Double textScore,
                                                Double behaviorScore, Double networkScore, List<String> reasons) {
         return new DataServerReviewAnalysis(reviewId, rti, level, textScore, behaviorScore, networkScore, reasons,
+                null, null, null, null, null, null,
                 null, null, null, null, null, null);
     }
 
@@ -76,14 +96,29 @@ public record DataServerReviewAnalysis(
                 : rulesReasonsKo;
         return new DataServerReviewAnalysis(reviewId, policyIndexV3, lowerLevel(evidenceLevelV3),
                 textScore, behaviorScore, networkScore, displayReasons,
-                policyIndexV3, evidenceLevelV3, analysisSummaryKo, rulesReasonsKo, evidenceReasonsV3, reasonSource);
+                policyIndexV3, evidenceLevelV3, analysisSummaryKo, rulesReasonsKo, evidenceReasonsV3, reasonSource,
+                levelV4, policyIndexV4, textScoreV4, textProbabilityV4, modelVersionV4, policyVersionV4);
     }
 
     private static String lowerLevel(String level) {
         return level == null || level.isBlank() ? null : level.strip().toLowerCase(Locale.ROOT);
     }
 
+    /** v4 등급은 Data 서버가 대문자로 보낸다. 공백·대소문자만 맞추고 모르는 값은 버린다 */
+    private static String upperLevel(String level) {
+        if (level == null || level.isBlank()) return null;
+        String upper = level.strip().toUpperCase(Locale.ROOT);
+        return switch (upper) {
+            case "SAFE", "WARN", "DANGER" -> upper;
+            default -> null;
+        };
+    }
+
     private static Double knownScore(Double score) {
         return score == null || score < 0 ? null : score;
+    }
+
+    private static Double knownProbability(Double probability) {
+        return probability == null || probability < 0 || probability > 1 ? null : probability;
     }
 }

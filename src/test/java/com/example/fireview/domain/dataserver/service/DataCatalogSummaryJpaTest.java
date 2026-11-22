@@ -5,6 +5,7 @@ import com.example.fireview.domain.dataserver.dto.DataServerProduct;
 import com.example.fireview.domain.dataserver.DataServerProductKey;
 import com.example.fireview.domain.dataserver.dto.response.AnalysisStatus;
 import com.example.fireview.domain.product.dto.ProductResponse;
+import com.example.fireview.domain.product.dto.ReviewLevelCounts;
 import com.example.fireview.domain.product.repository.ProductRepository;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
@@ -29,7 +30,7 @@ class DataCatalogSummaryJpaTest {
         var p = new DataServerProduct("kurly", "p", "상품", "https://x", null, null, null,
                 1000, "https://img", null, 2000, null, null);
         var a = new DataServerCatalogPage.Analysis(status, 1L, score, scored,
-                sampled ? 500 : 1, sampled ? 1318 : 1, sampled, "m1", "p1", null, "v0.5");
+                sampled ? 500 : 1, sampled ? 1318 : 1, sampled, "m1", "p1", null, "v0.5", null, null);
         return new DataServerCatalogPage.Entry(p, a);
     }
 
@@ -37,7 +38,16 @@ class DataCatalogSummaryJpaTest {
         var p = new DataServerProduct("kurly", "p", "상품", "https://x", null, null, null,
                 1000, "https://img", null, 2000, null, null);
         var a = new DataServerCatalogPage.Analysis("done", 2L, null, scored,
-                1, 1, false, "v3.1", "policy-v3", avgPolicyIndex, "v2");
+                1, 1, false, "v3.1", "policy-v3", avgPolicyIndex, "v2", null, null);
+        return new DataServerCatalogPage.Entry(p, a);
+    }
+
+    private DataServerCatalogPage.Entry v4Entry(String status, Double avgV4, DataServerCatalogPage.LevelCounts counts) {
+        var p = new DataServerProduct("kurly", "p", "상품", "https://x", null, null, null,
+                1000, "https://img", null, 2000, null, null);
+        boolean done = "done".equals(status);
+        var a = new DataServerCatalogPage.Analysis(status, 3L, null, done ? 3 : 0,
+                3, 3, false, "v3.1", "policy-v3", done ? 45.0 : null, "v2", avgV4, counts);
         return new DataServerCatalogPage.Entry(p, a);
     }
 
@@ -99,6 +109,64 @@ class DataCatalogSummaryJpaTest {
         assertThat(registry.upsertCatalogPage(List.of(v2Entry(72.5, 1)))).isEqualTo(1);
 
         assertThat(read().avgRti()).isEqualTo(72.5);
+    }
+
+    @Test
+    void v4_평균과_등급_분포를_v3_평균과_따로_저장한다() {
+        // #255: 화면은 v4 를 읽고, v3.1 평균(avgRti)은 되돌리기용으로 남는다
+        registry.upsertCatalogPage(List.of(v4Entry("done", 81.0,
+                new DataServerCatalogPage.LevelCounts(2, 1, 0))));
+
+        var response = read();
+        assertThat(response.avgRti()).isEqualTo(45.0);
+        assertThat(response.avgPolicyIndexV4()).isEqualTo(81.0);
+        assertThat(response.v4LevelCounts()).isEqualTo(new ReviewLevelCounts(2, 1, 0));
+    }
+
+    @Test
+    void v4가_아직_없으면_v3로_채우지_않고_null로_둔다() {
+        registry.upsertCatalogPage(List.of(v4Entry("done", null, null)));
+
+        var response = read();
+        assertThat(response.avgRti()).isEqualTo(45.0);
+        assertThat(response.avgPolicyIndexV4()).isNull();
+        assertThat(response.v4LevelCounts()).isNull();
+    }
+
+    @Test
+    void v4_값이_이상해도_상품은_등록하고_v4만_비운다() {
+        assertThat(registry.upsertCatalogPage(List.of(v4Entry("done", 120.0,
+                new DataServerCatalogPage.LevelCounts(1, null, 0))))).isEqualTo(1);
+
+        var response = read();
+        assertThat(response.avgRti()).isEqualTo(45.0);
+        assertThat(response.avgPolicyIndexV4()).isNull();
+        assertThat(response.v4LevelCounts()).isNull();
+    }
+
+    @Test
+    void 재분석에_들어가면_v4_값도_지운다() {
+        registry.upsertCatalogPage(List.of(v4Entry("done", 81.0,
+                new DataServerCatalogPage.LevelCounts(2, 1, 0))));
+        registry.upsertCatalogPage(List.of(v4Entry("running", 81.0,
+                new DataServerCatalogPage.LevelCounts(2, 1, 0))));
+
+        var response = read();
+        assertThat(response.avgPolicyIndexV4()).isNull();
+        assertThat(response.v4LevelCounts()).isNull();
+    }
+
+    @Test
+    void 상세_조회가_재분석_상태를_적으면_v4_값도_지운다() {
+        registry.upsertCatalogPage(List.of(v4Entry("done", 81.0,
+                new DataServerCatalogPage.LevelCounts(2, 1, 0))));
+        em.flush();
+        products.updateAnalysisStatus("kurly", "p", "RUNNING", java.time.LocalDateTime.now());
+
+        var response = read();
+        assertThat(response.avgRti()).isNull();
+        assertThat(response.avgPolicyIndexV4()).isNull();
+        assertThat(response.v4LevelCounts()).isNull();
     }
 
     @Test

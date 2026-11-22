@@ -176,7 +176,13 @@ public class DataProductService {
                 r.helpfulCount(),
                 analysis == null ? null : analysis.rti(),
                 analysis == null ? null : analysis.level(),
-                analysis == null ? List.of() : analysis.reasons());
+                analysis == null ? List.of() : analysis.reasons(),
+                analysis == null ? null : analysis.levelV4(),
+                analysis == null ? null : analysis.policyIndexV4(),
+                analysis == null ? null : analysis.textScoreV4(),
+                analysis == null ? null : analysis.textProbabilityV4(),
+                analysis == null ? null : analysis.modelVersionV4(),
+                analysis == null ? null : analysis.policyVersionV4());
     }
 
     private DataProductResponse.CollectionJobStatus toJob(DataServerJob job) {

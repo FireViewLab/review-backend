@@ -448,6 +448,20 @@ Data 서버가 `(platform, productId)` 로 상품을 가리키므로 프론트�
 - **신뢰도 분석은 리뷰마다 붙는다.** 분석 진행 상태는 `analysisStatus`(`DONE`·`QUEUED`·`RUNNING`·`NOT_ANALYZED`·`STALE`·`FAILED`·`DISABLED`·`UNAVAILABLE`)로 **늘 온다**(모르면 `UNAVAILABLE`). `analysis` 는 **결과가 있을 때(`DONE`)만** 모델·정책 버전을 담은 객체이고 그 밖에는 **null** 이다 — `analysis != null` 이 "분석 결과 있음"이라는 기존 뜻을 지킨다. 리뷰별 `rti`·`level`·`reasons` 는 `DONE` 일 때만 채워지고, 그 밖에는 `rti`·`level` 이 null, `reasons` 가 빈 배열이다. `level` 은 Data 원문 `safe`/`warn`/`danger` 그대로다(경계 70/40). **상품 단위 평균 RTI·등급은 아직 없다** — 결과가 리뷰 한 페이지 것뿐이라 화면에서 평균을 내면 안 된다. 자세한 화면 처리는 [frontend-v2-migration.md](frontend-v2-migration.md) 3절.
 - **`analysis` 의 리뷰 수는 둘이다.** `reviewCount` 는 **분석 입력(표본) 수**, `sourceReviewCount` 는 **Data 서버가 가진 원본 리뷰 수**다. `sampled: true` 면 원본 중 일부만 분석했으므로 표본에 들지 않은 리뷰는 `DONE` 이어도 `rti` 가 null 이다. 둘 다 `product.reviewCount`(쇼핑몰 표시 수)와 다를 수 있다. 구버전 Data 서버(표본 정책 전)면 `sampled`·`sourceReviewCount` 가 null 이다.
 - 리뷰는 **cursor 페이지네이션**이다. `reviews.nextCursor` 를 다음 요청의 `?cursor=` 에 그대로 넣는다. null 이면 마지막 페이지다.
+- **v4.0 결과는 `*V4` 필드로 따로 온다(#255).** 화면 등급·지수는 v4 를 쓴다. `rti`·`level`·`reasons` 는 v3.1 값 그대로 남아 있어, 읽는 키만 바꾸면 되돌릴 수 있다.
+
+  | 리뷰 필드 | 값 |
+  |---|---|
+  | `levelV4` | `SAFE`/`WARN`/`DANGER` (대문자) |
+  | `policyIndexV4` | 0~100. SAFE 70~100, WARN 40~69, DANGER 0~39 |
+  | `textScoreV4` | 0~100. 높을수록 신뢰 |
+  | `textProbabilityV4` | 0~1 의심 확률 |
+  | `modelVersionV4` / `policyVersionV4` | 예: `ptext-koelectra-v4.0` / `text-first-v1` |
+
+  - v4 가 아직 채워지지 않은 리뷰는 v4 필드가 전부 **null** 이다. v3 값으로 대신 채우지 않는다. "분석 중"으로 표시한다.
+  - `reasons`(v3.1 설명)는 v3.1 등급 기준이라 v4 등급과 함께 보여주지 않는다. v4 는 아직 설명 문장이 없다.
+  - 문구는 "가짜 리뷰" 같은 단정 대신 "주의가 필요한 리뷰"처럼 쓴다.
+  - 목록(`GET /api/products`, `/api/products/catalog`)에는 상품 단위로 `avgPolicyIndexV4`(평균 지수)와 `v4LevelCounts`(`{"SAFE": 2, "WARN": 1, "DANGER": 0}`)가 온다. 없으면 null 이고, `avgRti`(v3.1)로 대신 채우지 않는다.
 
 **POST `/api/v2/products/{platform}/{productId}/tag`** — **인증 필요**
 
