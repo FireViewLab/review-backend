@@ -6,10 +6,9 @@ import com.example.fireview.domain.cartschedule.NextRunCalculator;
 import com.example.fireview.domain.cartschedule.ScheduleText;
 import com.example.fireview.domain.cartschedule.entity.CartSchedule;
 import com.example.fireview.domain.cartschedule.repository.CartScheduleRepository;
-import com.example.fireview.domain.notification.entity.NotificationType;
-import com.example.fireview.domain.notification.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,12 +20,9 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class CartScheduleExecutor {
 
-    /** 알림을 누르면 갈 화면 */
-    static final String CART_URL = "/cart";
-
     private final CartScheduleRepository scheduleRepository;
     private final CartService cartService;
-    private final NotificationService notificationService;
+    private final ApplicationEventPublisher events;
 
     /**
      * @param expectedNextRunAt 대상을 고를 때 본 {@code next_run_at}. 지금 값과 다르면 다른 실행이 먼저 처리한 것이다
@@ -47,20 +43,9 @@ public class CartScheduleExecutor {
         // advance 가 영속성 컨텍스트를 비웠으므로 다시 읽어 연관을 쓴다
         CartSchedule ran = scheduleRepository.findById(scheduleId).orElseThrow();
         cartService.add(ran.getUser(), ran.getProduct(), ran.getQuantity(), CartEvent.SCHEDULE);
-        notifyAdded(ran);
+        // 알림은 이 트랜잭션이 커밋된 뒤 따로 저장한다(CartScheduleNotifier). 실패해도 담기는 남는다
+        events.publishEvent(new CartScheduleRanEvent(ran.getId(), ran.getUser().getId(),
+                ran.getProduct().getName(), ScheduleText.describe(ran.rule(), ran.getQuantity())));
         return true;
-    }
-
-    /** 알림은 부가 기능이다. 실패해도 담기와 회차 갱신은 남긴다 */
-    private void notifyAdded(CartSchedule schedule) {
-        try {
-            notificationService.createNotification(schedule.getUser(), NotificationType.SYSTEM,
-                    "예약한 상품을 장바구니에 담았어요",
-                    "%s · %s".formatted(schedule.getProduct().getName(),
-                            ScheduleText.describe(schedule.rule(), schedule.getQuantity())),
-                    CART_URL);
-        } catch (RuntimeException e) {
-            log.warn("[CartSchedule] 담기 알림 실패 - scheduleId={}", schedule.getId(), e);
-        }
     }
 }
