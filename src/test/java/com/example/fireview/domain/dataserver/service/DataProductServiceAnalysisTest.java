@@ -9,6 +9,8 @@ import com.example.fireview.domain.dataserver.dto.response.AnalysisStatus;
 import com.example.fireview.domain.dataserver.dto.response.CollectionStatus;
 import com.example.fireview.domain.dataserver.dto.response.DataProductResponse;
 import com.example.fireview.domain.dataserver.dto.response.DataProductResponse.DataReview;
+import com.example.fireview.domain.product.dto.ReviewLevelCounts;
+import com.example.fireview.domain.product.entity.Product;
 import com.example.fireview.domain.product.repository.ProductRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -49,6 +51,21 @@ class DataProductServiceAnalysisTest {
         when(dataServerClient.findProduct(any(), any())).thenReturn(Optional.of(body));
         when(registry.find(any())).thenReturn(Optional.empty());
         return service.getProduct("kurly", "1000146248", null);
+    }
+
+    /** 카탈로그 동기화로 번호표와 상품 평균이 저장된 상품을 연다 */
+    private DataProductResponse callWithStored(String fixture, Product stored) {
+        when(dataServerClient.findProduct(any(), any())).thenReturn(Optional.of(DataServerFixtures.load(fixture)));
+        when(registry.find(any())).thenReturn(Optional.of(stored));
+        when(registry.upsertForDisplay(any())).thenReturn(stored);
+        return service.getProduct("kurly", "1000146248", null);
+    }
+
+    private static Product stored(Double avgRti, Double avgV4, Integer safe, Integer warn, Integer danger) {
+        return Product.builder().id(1L).name("상품").platform("KURLY")
+                .dataPlatform("kurly").dataProductId("1000146248")
+                .avgRti(avgRti).avgPolicyIndexV4(avgV4)
+                .v4SafeCount(safe).v4WarnCount(warn).v4DangerCount(danger).build();
     }
 
     private static DataReview review(DataProductResponse res, String reviewId) {
@@ -314,6 +331,33 @@ class DataProductServiceAnalysisTest {
         DataReview r3 = review(res, "r-3");
         assertThat(r3.policyIndexV3()).isNull();
         assertThat(r3.evidenceLevelV3()).isNull();
+    }
+
+    @Test
+    void v2_상품은_저장된_상품_평균을_analysis에_싣는다() {
+        // 화면의 "리뷰 신뢰도 리포트" 상품 점수는 analysis.avgPolicyIndexV3 를 읽는다. 없으면 "계산 불가"였다
+        DataProductResponse res = callWithStored("product-analysis-v2-done.json", stored(72.5, 81.0, 2, 1, 0));
+
+        assertThat(res.analysis().avgPolicyIndexV3()).isEqualTo(72.5);
+        assertThat(res.analysis().avgPolicyIndexV4()).isEqualTo(81.0);
+        assertThat(res.analysis().v4LevelCounts()).isEqualTo(new ReviewLevelCounts(2, 1, 0));
+    }
+
+    @Test
+    void v0_5_상품의_평균은_v3_이름으로_싣지_않는다() {
+        // v0.5 상품의 avgRti 는 RTI 평균이라 정책 지수가 아니다
+        DataProductResponse res = callWithStored("product-analysis-done.json", stored(82.5, null, null, null, null));
+
+        assertThat(res.analysis().avgPolicyIndexV3()).isNull();
+        assertThat(res.analysis().v4LevelCounts()).isNull();
+    }
+
+    @Test
+    void 번호표가_없으면_상품_평균은_비어_있다() {
+        DataProductResponse res = callWith("product-analysis-v2-done.json");
+
+        assertThat(res.analysis().avgPolicyIndexV3()).isNull();
+        assertThat(res.analysis().avgPolicyIndexV4()).isNull();
     }
 
     @Test
