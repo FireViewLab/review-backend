@@ -26,6 +26,13 @@ import java.util.Set;
 public class DashboardService {
 
     private static final Limit RECOMMEND_LIMIT = Limit.of(10);
+    private static final double RISKY_THRESHOLD = 60.0;
+
+    /**
+     * 대시보드에 올릴 상품의 최소 분석 리뷰 수. 리뷰 한두 건으로 낸 평균은 상품 신뢰도로 보이기 어렵다.
+     * 운영에서 리뷰 1건짜리 상품이 RTI 96 으로 추천 맨 위를 차지했다.
+     */
+    static final int MIN_ANALYZED_REVIEWS = 5;
     private static final int POPULAR_KEYWORD_LIMIT = 10;
 
     private final ProductRepository productRepository;
@@ -40,8 +47,7 @@ public class DashboardService {
      */
     public DashboardResponse getPublicDashboard() {
         return new DashboardResponse(
-                productRepository.findRecommendedProducts(RECOMMEND_LIMIT)
-                        .stream().map(ProductResponse::from).toList(),
+                getDefaultRecommendedProducts(),
                 List.of(),
                 getRiskyProducts(),
                 getPopularKeywords()
@@ -94,6 +100,10 @@ public class DashboardService {
         if (pref.isPresent()) {
             Set<Category> preferred = pref.get().getPreferredCategories();
             int minScore = pref.get().getMinTrustScore();
+            if (!preferred.isEmpty() && hasDataProducts()) {
+                return toResponses(productRepository.findDashboardRecommendedIn(
+                        preferred, minScore, MIN_ANALYZED_REVIEWS, RECOMMEND_LIMIT));
+            }
             if (!preferred.isEmpty()) {
                 return productRepository.findByCategoryIn(preferred.stream().toList())
                         .stream()
@@ -106,8 +116,28 @@ public class DashboardService {
                         .toList();
             }
         }
-        return productRepository.findRecommendedProducts(RECOMMEND_LIMIT)
-                .stream().map(ProductResponse::from).toList();
+        return getDefaultRecommendedProducts();
+    }
+
+    /**
+     * 선호 카테고리가 없을 때의 추천.
+     *
+     * <p>Data 서버 상품이 있으면 분석이 끝나고 리뷰가 충분한 것만 올린다. 열 개가 안 되면 모자란 채로
+     * 둔다. 예전에는 분석 전 상품으로 빈자리를 채웠는데(#224), 검색으로 막 등록돼 리뷰가 아직 없는
+     * 새 상품이 메인 추천에 떴다. Data 상품이 하나도 없을 때만 기존 더미 순서를 쓴다(홈 목록과 같은 기준).
+     */
+    private List<ProductResponse> getDefaultRecommendedProducts() {
+        return toResponses(hasDataProducts()
+                ? productRepository.findDashboardRecommended(MIN_ANALYZED_REVIEWS, RECOMMEND_LIMIT)
+                : productRepository.findRecommendedProducts(RECOMMEND_LIMIT));
+    }
+
+    private boolean hasDataProducts() {
+        return productRepository.existsByDataPlatformIsNotNull();
+    }
+
+    private static List<ProductResponse> toResponses(List<Product> products) {
+        return products.stream().map(ProductResponse::from).toList();
     }
 
     private List<ProductResponse> getRecentProducts(User user) {
@@ -117,8 +147,13 @@ public class DashboardService {
                 .toList();
     }
 
+    /** 위험 상품. 추천과 같은 기준이라 더미와 리뷰가 적은 상품은 Data 상품이 있으면 빠진다 */
     private List<ProductResponse> getRiskyProducts() {
-        return productRepository.findRiskyProducts(60.0)
+        if (hasDataProducts()) {
+            return toResponses(productRepository.findDashboardRisky(
+                    RISKY_THRESHOLD, MIN_ANALYZED_REVIEWS, RECOMMEND_LIMIT));
+        }
+        return productRepository.findRiskyProducts(RISKY_THRESHOLD)
                 .stream().limit(10)
                 .map(ProductResponse::from)
                 .toList();

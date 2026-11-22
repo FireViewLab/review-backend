@@ -78,8 +78,13 @@ public class DataProductCatalogService {
      * 키워드 하나가 많이 차지하지 않게 줄여 쓴다.
      */
     public List<ProductResponse> search(String keyword, int limitPerPlatform) {
-        List<DataServerProduct> merged = interleave(fetchAll(keyword, limitPerPlatform));
+        List<List<DataServerProduct>> perPlatform = fetchAll(keyword, limitPerPlatform);
+        List<DataServerProduct> merged = interleave(perPlatform);
         if (merged.isEmpty()) {
+            // Data 는 리뷰가 저장된 상품만 돌려준다. 수집이 밀리면 몰 검색은 성공해도 결과가 비고,
+            // 실패가 아니라 경고 로그도 남지 않아 "결과 없음"과 장애를 구분할 수 없었다.
+            // 몰이 실패했다면 그 몰의 경고 로그가 이 줄 앞에 따로 남는다.
+            log.info("[DataCatalog] 검색 결과 0건 - keyword={}, 몰 {}곳 모두 빈 결과", keyword, perPlatform.size());
             return List.of();
         }
         try {
