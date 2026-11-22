@@ -11,6 +11,7 @@ import com.example.fireview.domain.dataserver.dto.DataServerReviewAnalysis;
 import com.example.fireview.domain.dataserver.dto.response.AnalysisStatus;
 import com.example.fireview.domain.dataserver.dto.response.CollectionStatus;
 import com.example.fireview.domain.dataserver.dto.response.DataProductResponse;
+import com.example.fireview.domain.product.dto.ReviewLevelCounts;
 import com.example.fireview.domain.product.entity.Product;
 import com.example.fireview.domain.product.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
@@ -81,7 +82,7 @@ public class DataProductService {
                 toReviewPage(body),
                 toJob(body.job()),
                 analysisStatus,
-                toAnalysis(analysisStatus, body.analysis()));
+                toAnalysis(analysisStatus, body.analysis(), cached));
     }
 
     /** 수집 진행 상황. QUEUED 를 받은 프론트가 이걸로 완료를 기다린다 */
@@ -141,8 +142,14 @@ public class DataProductService {
     }
 
     /** 결과가 없는 상태면 null — 프론트의 {@code analysis != null} 판정을 지킨다 */
-    private DataProductResponse.ProductAnalysis toAnalysis(AnalysisStatus status, DataServerAnalysis analysis) {
+    /**
+     * @param cached 번호표가 있으면 카탈로그 동기화로 저장한 상품 평균을 싣는다. 없으면 평균은 null.
+     *               Data 상품 응답에는 리뷰 한 페이지의 결과만 있어 여기서 평균을 내면 표본 평균이 된다.
+     */
+    private DataProductResponse.ProductAnalysis toAnalysis(AnalysisStatus status, DataServerAnalysis analysis,
+                                                           Product cached) {
         if (analysis == null || !DataProductResponse.hasAnalysisResult(status)) return null;
+        boolean v2 = DataServerReviewAnalysis.CONTRACT_V2.equalsIgnoreCase(analysis.contractVersion());
         return new DataProductResponse.ProductAnalysis(
                 status,
                 analysis.modelVersion(),
@@ -150,7 +157,12 @@ public class DataProductService {
                 analysis.reviewCount(),
                 analysis.sampled(),
                 analysis.sourceReviewCount(),
-                analysis.contractVersion());
+                analysis.contractVersion(),
+                // v2 상품은 동기화 때 v3.1 정책 지수 평균을 avgRti 칸에 저장한다(#250)
+                v2 && cached != null ? cached.getAvgRti() : null,
+                cached == null ? null : cached.getAvgPolicyIndexV4(),
+                cached == null ? null : ReviewLevelCounts.of(
+                        cached.getV4SafeCount(), cached.getV4WarnCount(), cached.getV4DangerCount()));
     }
 
     private DataProductResponse.ReviewPage toReviewPage(DataServerProductResponse body) {

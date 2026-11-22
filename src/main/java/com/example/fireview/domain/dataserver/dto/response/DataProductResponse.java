@@ -1,5 +1,7 @@
 package com.example.fireview.domain.dataserver.dto.response;
 
+import com.example.fireview.domain.product.dto.ReviewLevelCounts;
+
 import java.util.List;
 
 /**
@@ -72,6 +74,11 @@ public record DataProductResponse(
      * @param contractVersion   결과를 받은 AI 계약 {@code v0.5}/{@code v2}. {@code v2} 면 리뷰의
      *                          {@code rti} 는 RTI 가 아니라 정책 지수(0~100)이고 {@code reasons} 는
      *                          한국어 설명 문장이다. 구버전 Data 서버라 모르면 null
+     * @param avgPolicyIndexV3  상품 전체의 v3.1 정책 지수 평균. 카탈로그 동기화로 저장해 둔 값이라 이 페이지
+     *                          리뷰만의 평균이 아니다. v2 계약이 아니거나 아직 동기화되지 않았으면 null.
+     *                          화면의 "리뷰 신뢰도 리포트" 상품 점수가 이 이름을 읽는다
+     * @param avgPolicyIndexV4  상품 전체의 v4.0 정책 지수 평균. 없으면 null
+     * @param v4LevelCounts     v4.0 등급별 리뷰 수 {@code {SAFE, WARN, DANGER}}. 없으면 null
      */
     public record ProductAnalysis(
             AnalysisStatus status,
@@ -80,7 +87,10 @@ public record DataProductResponse(
             Integer reviewCount,
             Boolean sampled,
             Integer sourceReviewCount,
-            String contractVersion
+            String contractVersion,
+            Double avgPolicyIndexV3,
+            Double avgPolicyIndexV4,
+            ReviewLevelCounts v4LevelCounts
     ) {}
 
     /**
