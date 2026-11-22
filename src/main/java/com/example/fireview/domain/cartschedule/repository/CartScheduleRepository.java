@@ -15,6 +15,11 @@ public interface CartScheduleRepository extends JpaRepository<CartSchedule, Long
 
     long countByUser_IdAndStatus(Long userId, String status);
 
+    /** 회원 탈퇴 때 지운다. 끝났거나 취소한 예약도 행이 남아 탈퇴를 막는다 */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("DELETE FROM CartSchedule s WHERE s.user.id = :userId")
+    int deleteByUserId(@Param("userId") Long userId);
+
     List<CartSchedule> findByUser_IdAndStatusOrderByNextRunAtAsc(Long userId, String status);
 
     /** 실행할 때가 된 확정 예약. 오래 밀린 것부터 */
