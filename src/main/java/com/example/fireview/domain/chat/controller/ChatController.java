@@ -7,6 +7,7 @@ import com.example.fireview.domain.chat.dto.response.ChatResponse;
 import com.example.fireview.domain.chat.dto.response.ChatSessionResponse;
 import com.example.fireview.domain.chat.entity.ChatTier;
 import com.example.fireview.domain.chat.service.ChatService;
+import com.example.fireview.domain.chat.service.ChatSessionListService;
 import com.example.fireview.global.config.ExecutorConfig;
 import com.example.fireview.global.response.ApiResponse;
 import jakarta.validation.Valid;
@@ -46,14 +47,17 @@ public class ChatController {
     private static final long TIMEOUT_MS = 70_000L;
 
     private final ChatService chatService;
+    private final ChatSessionListService sessionListService;
     private final Executor chatExecutor;
 
     // Executor 빈이 둘(aiCallExecutor, chatExecutor)이라 @Qualifier 가 필요하다.
     // Lombok 의 @RequiredArgsConstructor 는 필드의 @Qualifier 를 생성자 파라미터로
     // 옮겨주지 않으므로 생성자를 직접 쓴다.
     public ChatController(ChatService chatService,
+                          ChatSessionListService sessionListService,
                           @Qualifier(ExecutorConfig.CHAT_EXECUTOR) Executor chatExecutor) {
         this.chatService = chatService;
+        this.sessionListService = sessionListService;
         this.chatExecutor = chatExecutor;
     }
 
@@ -158,9 +162,7 @@ public class ChatController {
             @AuthenticationPrincipal Jwt jwt,
             @PageableDefault(size = 20, sort = "lastMessageAt", direction = Sort.Direction.DESC)
             Pageable pageable) {
-        Page<ChatSessionResponse> sessions =
-                chatService.getMySessions(jwt.getSubject(), pageable).map(ChatSessionResponse::from);
-        return ApiResponse.success(sessions);
+        return ApiResponse.success(sessionListService.getMySessions(jwt.getSubject(), pageable));
     }
 
     /**
