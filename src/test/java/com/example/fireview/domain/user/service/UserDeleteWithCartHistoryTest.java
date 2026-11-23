@@ -31,7 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @DataJpaTest
 @ActiveProfiles("test")
-@Import(UserService.class)
+@Import({UserService.class, UserDataPurger.class})
 class UserDeleteWithCartHistoryTest {
 
     @Autowired UserService userService;
