@@ -181,4 +181,29 @@ class CartScheduleServiceTest {
         assertThatThrownBy(() -> service.confirm("o@test.com", 999L))
                 .extracting("errorCode").isEqualTo(ErrorCode.CART_SCHEDULE_NOT_FOUND);
     }
+    @Test
+    void 바로_확정_예약을_만든다() {
+        CartScheduleResponse created = service.createActive(owner, product, WEEKLY_MON.rule(), 1).orElseThrow();
+
+        assertThat(created.status()).isEqualTo(CartSchedule.ACTIVE);
+        assertThat(created.nextRunAt()).isEqualTo(LocalDateTime.of(2026, 11, 23, 9, 0));
+        assertThat(service.mySchedules("o@test.com")).hasSize(1);
+    }
+
+    @Test
+    void 같은_상품에_진행_중_예약이_있으면_바로_만들지_않는다() {
+        service.createActive(owner, product, WEEKLY_MON.rule(), 1).orElseThrow();
+
+        assertThat(service.createActive(owner, product, WEEKLY_MON.rule(), 1)).isEmpty();
+    }
+
+    @Test
+    void 진행_중_예약이_한도면_바로_만들지_않는다() {
+        for (int i = 0; i < CartScheduleService.MAX_ACTIVE; i++) {
+            Product other = products.save(Product.builder().id(100L + i).name("다른" + i).platform("KURLY").build());
+            service.createActive(owner, other, WEEKLY_MON.rule(), 1).orElseThrow();
+        }
+
+        assertThat(service.createActive(owner, product, WEEKLY_MON.rule(), 1)).isEmpty();
+    }
 }
