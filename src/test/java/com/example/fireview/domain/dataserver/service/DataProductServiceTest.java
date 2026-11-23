@@ -39,6 +39,7 @@ class DataProductServiceTest {
     @Mock DataServerClient dataServerClient;
     @Mock ProductRepository productRepository;
     @Mock ProductTagRegistry registry;
+    @Mock com.example.fireview.domain.reviewsummary.service.ProductReviewSummaryService summaryService;
     @InjectMocks DataProductService service;
 
     private static DataServerProduct product() {

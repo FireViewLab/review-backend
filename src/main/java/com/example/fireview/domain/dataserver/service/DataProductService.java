@@ -14,6 +14,7 @@ import com.example.fireview.domain.dataserver.dto.response.DataProductResponse;
 import com.example.fireview.domain.product.dto.ReviewLevelCounts;
 import com.example.fireview.domain.product.entity.Product;
 import com.example.fireview.domain.product.repository.ProductRepository;
+import com.example.fireview.domain.reviewsummary.service.ProductReviewSummaryService;
 import com.example.fireview.domain.review.entity.TrustGrade;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,6 +46,7 @@ public class DataProductService {
     private final DataServerClient dataServerClient;
     private final ProductRepository productRepository;
     private final ProductTagRegistry registry;
+    private final ProductReviewSummaryService summaryService;
 
     /**
      * 트랜잭션을 걸지 않는다. 대부분의 시간이 Data 서버 응답을 기다리는 데 쓰이는데,
@@ -60,7 +62,7 @@ public class DataProductService {
             log.warn("[DataProduct] Data 서버 조회 실패 - key={}", key.asExternalId());
             return new DataProductResponse(CollectionStatus.UNAVAILABLE,
                     springProductId(key), null, emptyPage(), null,
-                    AnalysisStatus.UNAVAILABLE, null);
+                    AnalysisStatus.UNAVAILABLE, null, summaryService.find(key).orElse(null));
         }
 
         DataServerProductResponse body = found.get();
@@ -78,6 +80,11 @@ public class DataProductService {
         // UNAVAILABLE(Data 미도달·구버전)은 적지 않는다 — 일시 장애가 마지막으로 본 상태를 덮으면 안 된다.
         registry.recordAnalysisStatus(key, analysisStatus);
 
+        // 요약은 첫 페이지를 열 때만 요청한다. 리뷰 페이지를 넘길 때마다 확인할 이유가 없다
+        if (cursor == null && analysisStatus == AnalysisStatus.DONE && body.hasUsableData()) {
+            summaryService.requestIfNeeded(key, body.analysis().inputHash(), body);
+        }
+
         return new DataProductResponse(
                 status,
                 springProductId(key),
@@ -85,7 +92,8 @@ public class DataProductService {
                 toReviewPage(body),
                 toJob(body.job()),
                 analysisStatus,
-                toAnalysis(analysisStatus, body.analysis(), cached));
+                toAnalysis(analysisStatus, body.analysis(), cached),
+                summaryService.find(key).orElse(null));
     }
 
     /** 수집 진행 상황. QUEUED 를 받은 프론트가 이걸로 완료를 기다린다 */
