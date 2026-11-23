@@ -14,6 +14,7 @@ import com.example.fireview.domain.dataserver.dto.response.DataProductResponse;
 import com.example.fireview.domain.product.dto.ReviewLevelCounts;
 import com.example.fireview.domain.product.entity.Product;
 import com.example.fireview.domain.product.repository.ProductRepository;
+import com.example.fireview.domain.review.entity.TrustGrade;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -123,7 +124,9 @@ public class DataProductService {
                 p.price(), p.thumbnailUrl(), p.category(),
                 p.reviewCount() != null ? p.reviewCount() : cachedReviewCount(cached),
                 p.rating() != null ? p.rating() : cachedRating(cached),
-                p.lastCollectedAt());
+                p.lastCollectedAt(),
+                p.descriptionText() == null || p.descriptionText().isBlank() ? null : p.descriptionText().strip(),
+                p.descriptionImages());
     }
 
     // 번호표를 만들 때 리뷰 수·평점이 비어 있으면 0 으로 채워진다(Product.onCreate).
@@ -151,6 +154,9 @@ public class DataProductService {
     private DataProductResponse.ProductAnalysis toAnalysis(AnalysisStatus status, DataServerAnalysis analysis,
                                                            Product cached) {
         if (analysis == null || !DataProductResponse.hasAnalysisResult(status)) return null;
+        Double avgV4 = cached == null ? null : cached.getAvgPolicyIndexV4();
+        ReviewLevelCounts countsV4 = cached == null ? null : ReviewLevelCounts.of(
+                cached.getV4SafeCount(), cached.getV4WarnCount(), cached.getV4DangerCount());
         return new DataProductResponse.ProductAnalysis(
                 status,
                 analysis.modelVersion(),
@@ -161,11 +167,28 @@ public class DataProductService {
                 analysis.contractVersion(),
                 // v3.1 평균. Data 가 더는 보내지 않는다(#273)
                 null,
-                cached == null ? null : cached.getAvgPolicyIndexV4(),
-                cached == null ? null : ReviewLevelCounts.of(
-                        cached.getV4SafeCount(), cached.getV4WarnCount(), cached.getV4DangerCount()),
+                avgV4,
+                countsV4,
                 firstPresent(analysis.results(), DataServerReviewAnalysis::modelVersionV4),
-                firstPresent(analysis.results(), DataServerReviewAnalysis::policyVersionV4));
+                firstPresent(analysis.results(), DataServerReviewAnalysis::policyVersionV4),
+                avgV4 == null ? null : levelV4(avgV4),
+                ratio(countsV4, ReviewLevelCounts::warn),
+                ratio(countsV4, ReviewLevelCounts::danger));
+    }
+
+    /** 리뷰 {@code levelV4} 와 같은 구간(70·40)으로 상품 평균에 등급을 붙인다 */
+    private static String levelV4(double avg) {
+        if (avg >= TrustGrade.SAFE_MIN_SCORE) return "SAFE";
+        if (avg >= TrustGrade.SUSPICIOUS_MIN_SCORE) return "WARN";
+        return "DANGER";
+    }
+
+    /** 소수 넷째 자리에서 반올림한다. 분포가 없거나 합이 0 이면 null — 0% 로 그리면 "의심 리뷰 없음"으로 읽힌다 */
+    private static Double ratio(ReviewLevelCounts counts, Function<ReviewLevelCounts, Integer> part) {
+        if (counts == null) return null;
+        int total = counts.safe() + counts.warn() + counts.danger();
+        if (total <= 0) return null;
+        return Math.round(part.apply(counts) * 10000.0 / total) / 10000.0;
     }
 
     /** 리뷰 결과 중 처음으로 값이 있는 버전. 한 분석의 리뷰는 같은 버전으로 채워진다 */
