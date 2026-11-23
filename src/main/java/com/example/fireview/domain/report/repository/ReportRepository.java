@@ -5,6 +5,7 @@ import com.example.fireview.domain.report.entity.ReportStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -48,4 +49,9 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
 
     /** 내가 제출한 신고 수 */
     long countByReporter_Id(Long reporterId);
+
+    /** 회원 탈퇴(UserDataPurger). 행마다 DELETE 를 보내지 않고 한 문장으로 지운다 */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("DELETE FROM Report x WHERE x.reporter.id = :userId")
+    int deleteAllOfUser(@Param("userId") Long userId);
 }

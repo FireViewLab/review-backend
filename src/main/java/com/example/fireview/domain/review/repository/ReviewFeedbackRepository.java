@@ -4,6 +4,7 @@ import com.example.fireview.domain.review.entity.ReviewFeedback;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -49,4 +50,9 @@ public interface ReviewFeedbackRepository extends JpaRepository<ReviewFeedback, 
            "   OR (f.review.trustGrade <> com.example.fireview.domain.review.entity.TrustGrade.SAFE " +
            "       AND f.feedbackType = com.example.fireview.domain.review.entity.FeedbackType.FAKE)")
     long countAgreementFeedbacks();
+
+    /** 회원 탈퇴(UserDataPurger). 행마다 DELETE 를 보내지 않고 한 문장으로 지운다 */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("DELETE FROM ReviewFeedback x WHERE x.user.id = :userId")
+    int deleteAllOfUser(@Param("userId") Long userId);
 }
