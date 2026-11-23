@@ -70,4 +70,27 @@ class ScheduleRequestTest {
     void null도_예약하지_않는다() {
         assertThat(ScheduleRequest.parse(null, NOW)).isEmpty();
     }
+    @Test
+    void 끝의_product_값으로_예약할_상품을_지정한다() {
+        assertThat(ScheduleRequest.parse("weekly SUN 09:00 qty=1 product=kurly-1000146248", NOW)).contains(
+                new ScheduleRequest(ScheduleRule.weekly(DayOfWeek.SUNDAY, LocalTime.of(9, 0)), 1, "kurly-1000146248"));
+    }
+
+    @Test
+    void product_값의_대소문자는_그대로_둔다() {
+        // 올리브영 상품 번호처럼 대문자가 들어간 주소가 있다
+        assertThat(ScheduleRequest.parse("monthly 1 product=oliveyoung-A000000123456", NOW))
+                .map(ScheduleRequest::productRef).contains("oliveyoung-A000000123456");
+    }
+
+    @Test
+    void product_값이_없으면_null이다() {
+        assertThat(ScheduleRequest.parse("weekly SUN 09:00 qty=1", NOW).orElseThrow().productRef()).isNull();
+    }
+
+    @Test
+    void product_값이_비었거나_뒤에_다른_말이_있으면_예약하지_않는다() {
+        assertThat(ScheduleRequest.parse("weekly SUN 09:00 qty=1 product=", NOW)).isEmpty();
+        assertThat(ScheduleRequest.parse("weekly SUN 09:00 qty=1 product=kurly-1 extra", NOW)).isEmpty();
+    }
 }
