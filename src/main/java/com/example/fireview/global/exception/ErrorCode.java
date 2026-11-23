@@ -48,7 +48,7 @@ public enum ErrorCode {
 
     // Chat
     CHAT_SESSION_NOT_FOUND(HttpStatus.NOT_FOUND, "대화를 찾을 수 없습니다."),
-    CHAT_SESSION_FORBIDDEN(HttpStatus.FORBIDDEN, "본인의 대화만 조회할 수 있습니다."),
+    CHAT_SESSION_FORBIDDEN(HttpStatus.FORBIDDEN, "본인의 대화에만 접근할 수 있습니다."),
     CHAT_LLM_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "챗봇이 일시적으로 응답할 수 없습니다. 잠시 후 다시 시도해주세요."),
     CHAT_QUOTA_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "오늘 사용할 수 있는 챗봇 메시지를 모두 사용했습니다. 요금제를 올리면 더 많이 이용할 수 있습니다."),
     CHAT_PLAN_REQUIRED(HttpStatus.FORBIDDEN, "프로 요금제에서 이용할 수 있는 기능입니다."),

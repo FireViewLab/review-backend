@@ -653,4 +653,61 @@ class ChatServiceTest {
         assertThat(result.scheduleProposal()).isNull();
         verify(cartScheduleService, never()).propose(any(), any(), any(), any());
     }
+
+    // ── #275: 대화 삭제 ─────────────────────────────────────────────
+
+    @Test
+    void 내_대화를_메시지부터_지운다() {
+        ChatSession mine = ChatSession.builder().id(5L).user(user).title("내 대화").build();
+        when(sessionRepository.findById(5L)).thenReturn(Optional.of(mine));
+
+        service.deleteSession(EMAIL, 5L);
+
+        // 메시지가 세션을 FK 로 물고 있어 순서가 바뀌면 지우지 못한다
+        var order = org.mockito.Mockito.inOrder(messageRepository, sessionRepository);
+        order.verify(messageRepository).deleteBySessionIds(List.of(5L));
+        order.verify(sessionRepository).deleteByIds(List.of(5L));
+    }
+
+    @Test
+    void 남의_대화는_지울_수_없다() {
+        User other = User.builder().id(99L).email("other@test.com").build();
+        when(sessionRepository.findById(5L))
+                .thenReturn(Optional.of(ChatSession.builder().id(5L).user(other).title("남의 대화").build()));
+
+        assertThatThrownBy(() -> service.deleteSession(EMAIL, 5L))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CHAT_SESSION_FORBIDDEN);
+        verify(messageRepository, never()).deleteBySessionIds(any());
+        verify(sessionRepository, never()).deleteByIds(any());
+    }
+
+    @Test
+    void 없는_대화를_지우면_404다() {
+        when(sessionRepository.findById(5L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.deleteSession(EMAIL, 5L))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CHAT_SESSION_NOT_FOUND);
+    }
+
+    @Test
+    void 전체_삭제는_내_대화만_지우고_수를_돌려준다() {
+        when(sessionRepository.findIdsByUserId(1L)).thenReturn(List.of(5L, 6L));
+        when(sessionRepository.deleteByIds(List.of(5L, 6L))).thenReturn(2);
+
+        assertThat(service.deleteAllSessions(EMAIL)).isEqualTo(2);
+        verify(messageRepository).deleteBySessionIds(List.of(5L, 6L));
+    }
+
+    @Test
+    void 지울_대화가_없으면_쿼리를_보내지_않는다() {
+        when(sessionRepository.findIdsByUserId(1L)).thenReturn(List.of());
+
+        assertThat(service.deleteAllSessions(EMAIL)).isZero();
+        verify(messageRepository, never()).deleteBySessionIds(any());
+        verify(sessionRepository, never()).deleteByIds(any());
+    }
 }

@@ -151,7 +151,9 @@ class AuthRequiredEndpointsTest {
                         .contentType(MediaType.APPLICATION_JSON).content(CHAT_BODY)),
                 endpoint("챗봇 사용량", () -> get("/api/chat/quota")),
                 endpoint("챗봇 대화 목록", () -> get("/api/chat/sessions")),
-                endpoint("챗봇 대화 내용", () -> get("/api/chat/sessions/1/messages"))
+                endpoint("챗봇 대화 내용", () -> get("/api/chat/sessions/1/messages")),
+                endpoint("챗봇 대화 삭제", () -> delete("/api/chat/sessions/1")),
+                endpoint("챗봇 대화 전체 삭제", () -> delete("/api/chat/sessions"))
         );
     }
 

@@ -201,6 +201,34 @@ public class ChatService {
         return quotaOf(user, user.getEffectivePlan());
     }
 
+    /**
+     * 대화 하나를 메시지까지 지운다(#275). 남의 대화면 403, 없으면 404 — 조회와 같은 기준이다.
+     * 사용량은 되돌리지 않는다. 지우고 다시 물으면 한도가 늘어나는 셈이 되기 때문이다.
+     */
+    @Transactional
+    public void deleteSession(String userEmail, Long sessionId) {
+        User user = userService.findByEmail(userEmail);
+        ChatSession session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new CustomException(ErrorCode.CHAT_SESSION_NOT_FOUND));
+        if (!session.isOwnedBy(user)) {
+            throw new CustomException(ErrorCode.CHAT_SESSION_FORBIDDEN);
+        }
+        deleteSessions(List.of(sessionId));
+    }
+
+    /** 내 대화를 모두 지운다(#275). 지운 대화 수를 돌려준다. 없으면 0 */
+    @Transactional
+    public int deleteAllSessions(String userEmail) {
+        User user = userService.findByEmail(userEmail);
+        return deleteSessions(sessionRepository.findIdsByUserId(user.getId()));
+    }
+
+    private int deleteSessions(List<Long> sessionIds) {
+        if (sessionIds.isEmpty()) return 0;
+        messageRepository.deleteBySessionIds(sessionIds);
+        return sessionRepository.deleteByIds(sessionIds);
+    }
+
     @Transactional(readOnly = true)
     public List<ChatMessage> getMessages(String userEmail, Long sessionId) {
         User user = userService.findByEmail(userEmail);

@@ -564,6 +564,8 @@ Spring DB 에 그 리뷰 행이 없고, 본문을 클라이언트에게 받으�
 | GET | `/api/chat/quota` | 오늘 남은 사용량 |
 | GET | `/api/chat/sessions` | 내 대화 목록 (페이징) |
 | GET | `/api/chat/sessions/{sessionId}/messages` | 대화 내용 |
+| DELETE | `/api/chat/sessions/{sessionId}` | 대화 삭제 (본인 것만) |
+| DELETE | `/api/chat/sessions` | 내 대화 전체 삭제 |
 
 ### 요금제와 하루 한도
 
@@ -706,9 +708,18 @@ LLM 을 부르지 않으므로 빠르고, 쿼터를 깎지 않는다. 채팅 화
 **GET `/api/chat/sessions`** → `Page<ChatSessionResponse>`
 
 ```json
-{ "id": 10, "productId": "7195971829", "title": "이 상품 살만해?",
-  "createdAt": "2026-09-30T10:00:00", "lastMessageAt": "2026-09-30T10:05:00" }
+{ "id": 10, "productId": "kurly-1000146248", "title": "이 상품 살만해?",
+  "createdAt": "2026-09-30T10:00:00", "lastMessageAt": "2026-09-30T10:05:00",
+  "productName": "샘플 상품", "productImageUrl": "https://img..." }
 ```
+
+- `productName`·`productImageUrl` 은 상품 없는 대화이거나 서버에 번호표가 없는 상품(목록·검색에 한 번도 오르지 않은 상품)이면 **null** 이다(#275). null 이면 상세를 따로 불러 채운다.
+
+**DELETE `/api/chat/sessions/{sessionId}`** → `ApiResponse<Void>`. 메시지까지 지운다. 남의 대화면 `403 CHAT_SESSION_FORBIDDEN`, 없으면 `404 CHAT_SESSION_NOT_FOUND`.
+
+**DELETE `/api/chat/sessions`** → `ApiResponse<Integer>`. 내 대화를 모두 지우고 지운 대화 수를 `data` 에 준다(없으면 0).
+
+- 두 삭제 모두 오늘 쓴 사용량은 되돌리지 않는다.
 
 **GET `/api/chat/sessions/{sessionId}/messages`** → `List<ChatMessageResponse>`
 

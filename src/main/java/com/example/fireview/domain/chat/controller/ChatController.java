@@ -7,6 +7,7 @@ import com.example.fireview.domain.chat.dto.response.ChatResponse;
 import com.example.fireview.domain.chat.dto.response.ChatSessionResponse;
 import com.example.fireview.domain.chat.entity.ChatTier;
 import com.example.fireview.domain.chat.service.ChatService;
+import com.example.fireview.domain.chat.service.ChatSessionListService;
 import com.example.fireview.global.config.ExecutorConfig;
 import com.example.fireview.global.response.ApiResponse;
 import jakarta.validation.Valid;
@@ -46,14 +47,17 @@ public class ChatController {
     private static final long TIMEOUT_MS = 70_000L;
 
     private final ChatService chatService;
+    private final ChatSessionListService sessionListService;
     private final Executor chatExecutor;
 
     // Executor 빈이 둘(aiCallExecutor, chatExecutor)이라 @Qualifier 가 필요하다.
     // Lombok 의 @RequiredArgsConstructor 는 필드의 @Qualifier 를 생성자 파라미터로
     // 옮겨주지 않으므로 생성자를 직접 쓴다.
     public ChatController(ChatService chatService,
+                          ChatSessionListService sessionListService,
                           @Qualifier(ExecutorConfig.CHAT_EXECUTOR) Executor chatExecutor) {
         this.chatService = chatService;
+        this.sessionListService = sessionListService;
         this.chatExecutor = chatExecutor;
     }
 
@@ -158,9 +162,7 @@ public class ChatController {
             @AuthenticationPrincipal Jwt jwt,
             @PageableDefault(size = 20, sort = "lastMessageAt", direction = Sort.Direction.DESC)
             Pageable pageable) {
-        Page<ChatSessionResponse> sessions =
-                chatService.getMySessions(jwt.getSubject(), pageable).map(ChatSessionResponse::from);
-        return ApiResponse.success(sessions);
+        return ApiResponse.success(sessionListService.getMySessions(jwt.getSubject(), pageable));
     }
 
     /**
@@ -174,6 +176,27 @@ public class ChatController {
         List<ChatMessageResponse> messages = chatService.getMessages(jwt.getSubject(), sessionId)
                 .stream().map(ChatMessageResponse::from).toList();
         return ApiResponse.success(messages);
+    }
+
+    @Operation(summary = "대화 삭제", description = """
+            대화 하나를 메시지까지 지운다. 본인 대화가 아니면 403, 없으면 404.
+            오늘 쓴 사용량은 되돌리지 않는다.
+            """)
+    @DeleteMapping("/sessions/{sessionId}")
+    public ApiResponse<Void> deleteSession(
+            @PathVariable Long sessionId,
+            @AuthenticationPrincipal Jwt jwt) {
+        chatService.deleteSession(jwt.getSubject(), sessionId);
+        return ApiResponse.ok("대화를 삭제했습니다.");
+    }
+
+    @Operation(summary = "대화 전체 삭제", description = """
+            내 대화를 모두 지운다. `data` 는 지운 대화 수다(없으면 0).
+            오늘 쓴 사용량은 되돌리지 않는다.
+            """)
+    @DeleteMapping("/sessions")
+    public ApiResponse<Integer> deleteAllSessions(@AuthenticationPrincipal Jwt jwt) {
+        return ApiResponse.success("대화를 모두 삭제했습니다.", chatService.deleteAllSessions(jwt.getSubject()));
     }
 
     // ────────────────────────────── 내부 ──────────────────────────────
