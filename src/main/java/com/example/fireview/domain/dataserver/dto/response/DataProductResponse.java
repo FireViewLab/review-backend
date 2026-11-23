@@ -80,6 +80,11 @@ public record DataProductResponse(
      *                          {@code modelVersion} 은 분석 job 의 버전이라 v4 로 다시 채운 상품은 v3.1 값이 남는다(#276).
      *                          v4 결과가 있는 리뷰가 페이지에 없으면 null
      * @param policyVersionV4   v4.0 규칙 버전 (예: {@code text-first-v1}). 읽는 곳과 null 조건은 위와 같다
+     * @param avgLevelV4        상품 v4 평균 지수의 등급 {@code SAFE}(70~100)/{@code WARN}(40~69)/{@code DANGER}(0~39).
+     *                          리뷰 {@code levelV4} 와 같은 구간이다. 평균이 없으면 null(#249)
+     * @param warnRatioV4       v4 결과가 있는 리뷰 중 {@code WARN} 비율(0~1). 등급 분포가 없거나 합이 0 이면 null
+     * @param dangerRatioV4     v4 결과가 있는 리뷰 중 {@code DANGER} 비율(0~1). null 조건은 위와 같다.
+     *                          "의심 리뷰 비율"에 WARN 을 넣을지는 화면이 정한다 — 두 비율을 더하면 된다
      */
     public record ProductAnalysis(
             AnalysisStatus status,
@@ -93,7 +98,10 @@ public record DataProductResponse(
             Double avgPolicyIndexV4,
             ReviewLevelCounts v4LevelCounts,
             String modelVersionV4,
-            String policyVersionV4
+            String policyVersionV4,
+            String avgLevelV4,
+            Double warnRatioV4,
+            Double dangerRatioV4
     ) {}
 
     /**

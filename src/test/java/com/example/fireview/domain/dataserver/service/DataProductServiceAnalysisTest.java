@@ -365,6 +365,44 @@ class DataProductServiceAnalysisTest {
         assertThat(res.analysis().policyVersionV4()).isNull();
     }
 
+    @ParameterizedTest(name = "평균 {0} → {1}")
+    @CsvSource({"70.0, SAFE", "69.9, WARN", "40.0, WARN", "39.9, DANGER", "0.0, DANGER"})
+    void 상품_v4_평균에_리뷰와_같은_구간의_등급을_붙인다(double avg, String level) {
+        // #249: 새로고침·공유 링크로 들어와도 같은 리포트가 보이도록 서버가 등급을 내린다
+        DataProductResponse res = callWithStored("product-analysis-v4-done.json", stored(avg, avg, 1, 0, 0));
+
+        assertThat(res.analysis().avgLevelV4()).isEqualTo(level);
+    }
+
+    @Test
+    void 등급_분포로_WARN과_DANGER_비율을_따로_내린다() {
+        // 의심 리뷰 비율에 WARN 을 넣을지는 화면이 정한다. 둘을 따로 주면 어느 쪽이든 그릴 수 있다
+        DataProductResponse res = callWithStored("product-analysis-v4-done.json", stored(60.0, 60.0, 5, 2, 1));
+
+        assertThat(res.analysis().warnRatioV4()).isEqualTo(0.25);
+        assertThat(res.analysis().dangerRatioV4()).isEqualTo(0.125);
+    }
+
+    @Test
+    void 비율은_소수_넷째_자리까지다() {
+        DataProductResponse res = callWithStored("product-analysis-v4-done.json", stored(60.0, 60.0, 1, 1, 1));
+
+        assertThat(res.analysis().warnRatioV4()).isEqualTo(0.3333);
+    }
+
+    @Test
+    void 분포가_없거나_합이_0이면_비율과_등급을_비운다() {
+        // 0% 로 내리면 "의심 리뷰 없음"으로 읽힌다
+        DataProductResponse none = callWithStored("product-analysis-v4-done.json", stored(null, null, null, null, null));
+        assertThat(none.analysis().avgLevelV4()).isNull();
+        assertThat(none.analysis().warnRatioV4()).isNull();
+        assertThat(none.analysis().dangerRatioV4()).isNull();
+
+        DataProductResponse zero = callWithStored("product-analysis-v4-done.json", stored(null, null, 0, 0, 0));
+        assertThat(zero.analysis().warnRatioV4()).isNull();
+        assertThat(zero.analysis().dangerRatioV4()).isNull();
+    }
+
     @Test
     void 번호표가_없으면_상품_평균은_비어_있다() {
         DataProductResponse res = callWith("product-analysis-v4-done.json");
