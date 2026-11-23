@@ -80,8 +80,11 @@ public class ChatService {
      */
     public ChatResult ask(String userEmail, ChatTier tier,
                           Long sessionId, String productId, String question) {
+        // 반복 담기 이력은 대화 트랜잭션 밖에서 미리 찾는다. 안에서 찾다 쿼리가 실패하면 예외를 잡아도
+        // 대화 트랜잭션이 rollback-only 가 되어 답변을 저장하지 못한다(#271 리뷰)
+        List<RepurchaseCandidate> repurchases = findRepurchases(userEmail);
         Turn turn = transactionOperations.execute(
-                status -> converse(userEmail, tier, sessionId, productId, question));
+                status -> converse(userEmail, tier, sessionId, productId, question, repurchases));
 
         // ── 추천·예약 제안: 대화 트랜잭션이 커밋되고 커넥션을 돌려준 뒤에 처리한다 ──
         ChatResult result = turn.result();
@@ -95,8 +98,8 @@ public class ChatService {
     }
 
     /** 대화 한 턴을 처리하고 저장한다. 호출자가 연 트랜잭션 안에서 돈다 */
-    private Turn converse(String userEmail, ChatTier tier,
-                          Long sessionId, String productId, String question) {
+    private Turn converse(String userEmail, ChatTier tier, Long sessionId, String productId,
+                          String question, List<RepurchaseCandidate> repurchases) {
         User user = userService.findByEmail(userEmail);
         PlanTier plan = user.getEffectivePlan();
 
@@ -124,7 +127,6 @@ public class ChatService {
                 : productAnalysisPort.findContext(session.getProductId()).orElse(null);
 
         String systemPrompt = promptAssembler.systemPrompt();
-        List<RepurchaseCandidate> repurchases = findRepurchases(user);
         String userMessage = promptAssembler.buildUserMessage(context, repurchases, question);
         List<LlmClient.Turn> history = loadHistory(session);
 
@@ -269,12 +271,14 @@ public class ChatService {
     private record ScheduleTarget(String externalId, String name) {
     }
 
-    /** 반복 담기 후보(RAG 검색). 부가 정보라 실패해도 이력 없이 답한다 */
-    private List<RepurchaseCandidate> findRepurchases(User user) {
+    /** 반복 담기 후보(RAG 검색). 부가 정보라 실패해도 이력 없이 답한다. 대화 트랜잭션 밖에서 부른다 */
+    private List<RepurchaseCandidate> findRepurchases(String userEmail) {
         try {
-            return repurchaseFinder.findAll(user.getId(), REPURCHASE_PROMPT_LIMIT);
+            return repurchaseFinder.findAll(userService.findByEmail(userEmail).getId(), REPURCHASE_PROMPT_LIMIT);
+        } catch (CustomException e) {
+            throw e;
         } catch (RuntimeException e) {
-            log.warn("[Chat] 반복 담기 이력 조회 실패, 이력 없이 답한다 - userId={}", user.getId(), e);
+            log.warn("[Chat] 반복 담기 이력 조회 실패, 이력 없이 답한다", e);
             return List.of();
         }
     }
