@@ -28,7 +28,7 @@ import java.time.ZoneId;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@DataJpaTest
+@DataJpaTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 @ActiveProfiles("test")
 @Import({RepurchaseFinder.class, RepurchaseFinderTest.FixedClock.class})
 class RepurchaseFinderTest {
@@ -47,6 +47,7 @@ class RepurchaseFinderTest {
     @Autowired CartScheduleRepository schedules;
     @Autowired UserRepository users;
     @Autowired ProductRepository products;
+    @Autowired jakarta.persistence.EntityManager em;
 
     private User user;
     private User other;
@@ -133,5 +134,21 @@ class RepurchaseFinderTest {
         }
 
         assertThat(finder.findDue(user.getId(), 2)).hasSize(2);
+    }
+    @Test
+    void 후보가_많아도_쿼리_수는_상품_수에_비례하지_않는다() {
+        // 담기 기록마다 상품을 따로 읽으면 매 챗봇 턴이 상품 수만큼 쿼리를 날린다(#271 리뷰)
+        for (long i = 1; i <= 20; i++) {
+            added(user, product(i, "상품" + i), d(11, 1), d(11, 8));
+        }
+        em.flush();
+        em.clear();
+        org.hibernate.stat.Statistics stats =
+                em.getEntityManagerFactory().unwrap(org.hibernate.SessionFactory.class).getStatistics();
+        stats.clear();
+
+        assertThat(finder.findAll(user.getId(), 5)).hasSize(5);
+
+        assertThat(stats.getPrepareStatementCount()).isLessThanOrEqualTo(3);
     }
 }
