@@ -102,6 +102,14 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     Optional<Product> findByDataPlatformAndDataProductId(String dataPlatform, String dataProductId);
 
     /**
+     * 여러 Data 주소의 번호표를 한 번에 읽는다. 대화 목록처럼 상품 여러 개에 이름을 붙일 때 쓴다(#275).
+     * 플랫폼·상품 ID 를 따로 IN 으로 거르므로 짝이 맞지 않는 행이 섞일 수 있다. 호출하는 쪽이 짝을 맞춰 고른다.
+     */
+    @Query("SELECT p FROM Product p WHERE p.dataPlatform IN :platforms AND p.dataProductId IN :productIds")
+    List<Product> findByDataPlatformInAndDataProductIdIn(@Param("platforms") Collection<String> platforms,
+                                                         @Param("productIds") Collection<String> productIds);
+
+    /**
      * 번호표의 분석 상태 두 칼럼만 바꾼다. 상태가 이미 같으면 쓰지 않는다.
      *
      * <p>엔티티를 읽어 고친 뒤 저장하면, 그 사이 표시 정보 저장이 같은 행을 쓴 경우 서로의 값을
