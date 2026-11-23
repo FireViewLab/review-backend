@@ -1,6 +1,7 @@
 package com.example.fireview.domain.dataserver.dto.response;
 
 import com.example.fireview.domain.product.dto.ReviewLevelCounts;
+import com.example.fireview.domain.reviewsummary.dto.ReviewSummaryView;
 
 import java.util.List;
 
@@ -23,6 +24,8 @@ import java.util.List;
  * @param job              수집 job. 진행 중일 때만 들어온다
  * @param analysisStatus   신뢰도 분석 상태. null 이 아니다 — 모르면 {@code UNAVAILABLE}
  * @param analysis         분석 결과 정보. {@link #hasAnalysisResult} 일 때만 객체, 그 밖에는 null
+ * @param reviewSummary    상품 AI 리뷰 요약(장점·아쉬운 점). 아직 없으면 null(#277). 분석이 끝난 상품을 처음 열 때
+ *                         뒤에서 만들기 시작하므로 그 응답에는 없고 다음 조회부터 보인다
  */
 public record DataProductResponse(
         CollectionStatus collectionStatus,
@@ -31,7 +34,8 @@ public record DataProductResponse(
         ReviewPage reviews,
         CollectionJobStatus job,
         AnalysisStatus analysisStatus,
-        ProductAnalysis analysis
+        ProductAnalysis analysis,
+        ReviewSummaryView reviewSummary
 ) {
 
     /**

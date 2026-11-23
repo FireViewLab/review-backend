@@ -29,6 +29,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -41,6 +42,7 @@ class DataProductServiceAnalysisTest {
     @Mock DataServerClient dataServerClient;
     @Mock ProductRepository productRepository;
     @Mock ProductTagRegistry registry;
+    @Mock com.example.fireview.domain.reviewsummary.service.ProductReviewSummaryService summaryService;
     @InjectMocks DataProductService service;
 
     private DataProductResponse callWith(String fixture) {
@@ -409,5 +411,47 @@ class DataProductServiceAnalysisTest {
 
         assertThat(res.analysis().avgPolicyIndexV3()).isNull();
         assertThat(res.analysis().avgPolicyIndexV4()).isNull();
+    }
+
+    // ── #277: 상품 AI 리뷰 요약 ─────────────────────────────────────────
+
+    @Test
+    void 분석이_끝난_상품의_첫_페이지를_열면_요약을_요청한다() {
+        callWith("product-analysis-v4-done.json");
+
+        verify(summaryService).requestIfNeeded(eq(new DataServerProductKey("kurly", "1000146248")),
+                eq("sha256:def"), any());
+    }
+
+    @Test
+    void 리뷰_다음_페이지나_분석_전_상품은_요약을_요청하지_않는다() {
+        when(dataServerClient.findProduct(any(), any()))
+                .thenReturn(Optional.of(DataServerFixtures.load("product-analysis-v4-done.json")));
+        when(registry.find(any())).thenReturn(Optional.empty());
+        service.getProduct("kurly", "1000146248", "next-1");
+        callWith("product-analysis-not-analyzed.json");
+
+        verify(summaryService, never()).requestIfNeeded(any(), any(), any());
+    }
+
+    @Test
+    void 저장된_요약을_응답에_싣는다() throws Exception {
+        var view = new com.example.fireview.domain.reviewsummary.dto.ReviewSummaryView(
+                List.of("보습력 좋음"), List.of(), 40, java.time.LocalDateTime.of(2026, 11, 23, 12, 0));
+        when(summaryService.find(any())).thenReturn(Optional.of(view));
+
+        JsonNode json = new ObjectMapper().findAndRegisterModules()
+                .valueToTree(callWith("product-analysis-v4-done.json")).get("reviewSummary");
+
+        assertThat(json.get("pros").get(0).asText()).isEqualTo("보습력 좋음");
+        assertThat(json.get("cons")).isEmpty();
+        assertThat(json.get("sourceReviewCount").asInt()).isEqualTo(40);
+    }
+
+    @Test
+    void 요약이_없으면_null이다() {
+        JsonNode json = new ObjectMapper().valueToTree(callWith("product-analysis-v4-done.json"));
+
+        assertThat(json.get("reviewSummary").isNull()).isTrue();
     }
 }

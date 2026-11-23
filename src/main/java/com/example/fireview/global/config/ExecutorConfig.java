@@ -23,6 +23,7 @@ public class ExecutorConfig {
     public static final String AI_CALL_EXECUTOR = "aiCallExecutor";
     public static final String CHAT_EXECUTOR = "chatExecutor";
     public static final String DATA_SERVER_EXECUTOR = "dataServerExecutor";
+    public static final String REVIEW_SUMMARY_EXECUTOR = "reviewSummaryExecutor";
 
     @Bean(name = AI_CALL_EXECUTOR)
     public Executor aiCallExecutor() {
@@ -87,6 +88,27 @@ public class ExecutorConfig {
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(30);
+        executor.initialize();
+        return executor;
+    }
+
+    /**
+     * 상품 리뷰 요약 생성용 풀(#277). 상세 조회가 요약을 기다리지 않도록 뒤에서 만든다.
+     *
+     * <p>작게 둔다. 요약은 급하지 않고, 한꺼번에 몰리면 LLM 비용과 Data 서버 부하만 커진다.
+     * 포화 시 거부한다 — 호출 스레드는 상세 조회 요청이라 거기서 LLM 을 기다리면 안 된다.
+     * 거부된 상품은 다음 조회 때 다시 요청된다.
+     */
+    @Bean(name = REVIEW_SUMMARY_EXECUTOR)
+    public Executor reviewSummaryExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setThreadNamePrefix("review-summary-");
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(2);
+        executor.setQueueCapacity(20);
+        executor.setKeepAliveSeconds(60);
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
+        executor.setWaitForTasksToCompleteOnShutdown(false);
         executor.initialize();
         return executor;
     }

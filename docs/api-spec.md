@@ -452,6 +452,10 @@ Data 서버가 `(platform, productId)` 로 상품을 가리키므로 프론트�
 - **분석은 v4.0 하나다(#273).** Data 서버가 v0.5·v3.1 결과를 보내지 않는다. 리뷰의 `rti`·`level`·`textScore`·`behaviorScore`·`networkScore`·`policyIndexV3`·`evidenceLevelV3`·`analysisSummaryKo`·`reasonSource` 는 **늘 null**, `reasons`·`rulesReasonsKo`·`evidenceReasonsV3` 는 **늘 빈 배열**이다. 배포된 화면이 키를 읽고 있어 자리만 남겼고, 화면이 키를 지우면 뺀다. `analysis.contractVersion` 은 `v4` 로 온다.
 - **`analysis.modelVersionV4`·`policyVersionV4` 는 v4.0 모델·규칙 버전이다(#276).** 이 페이지 리뷰 결과에서 읽는다. `modelVersion`·`policyVersion` 은 분석 job 버전이라 v4 로 다시 채운 상품은 v3.1 값이 남는다. v4 결과가 있는 리뷰가 페이지에 없으면 null.
 - **`analysis`에는 상품 단위 v4 요약이 실린다(#249):** `avgLevelV4`(평균 지수의 등급 `SAFE` 70~100 / `WARN` 40~69 / `DANGER` 0~39, 평균이 없으면 null), `warnRatioV4`·`dangerRatioV4`(v4 결과가 있는 리뷰 중 비율 0~1, 소수 넷째 자리. 분포가 없거나 합이 0 이면 null). "의심 리뷰 비율"에 WARN 을 넣을지는 화면이 정한다 — 넣으려면 두 비율을 더한다. 상품 요약 문장은 아직 없다(v3.1 설명은 v4 등급과 맞지 않아 싣지 않는다).
+- **`reviewSummary` 는 상품 AI 리뷰 요약이다(#277).** `{ "pros": [...], "cons": [...], "sourceReviewCount": 40, "generatedAt": "..." }`. 장점 2~3개, 아쉬운 점 0~3개(리뷰에 없으면 빈 배열). 사용자 채팅 한도를 쓰지 않는다.
+  - 분석이 끝난(`DONE`) 상품의 첫 페이지를 처음 열 때 서버가 뒤에서 만들기 시작한다. **그 응답에는 `null` 이고 다음 조회부터 보인다.** 리뷰가 바뀌어 다시 만드는 동안은 이전 요약이 그대로 온다.
+  - 의심 등급(`DANGER`) 리뷰, 10자 미만 리뷰는 요약에 넣지 않는다. 남은 리뷰가 5개 미만이면 만들지 않고 계속 `null` 이다.
+  - `null` 이면 요약 영역을 숨기거나 "요약 준비 중"으로 둔다. 폴링하지 않는다.
 - **`product.description`·`detailImages` 는 상품 상세 설명이다(#249).** 설명 본문(plain text)과 설명 이미지 URL 배열. 컬리·무신사만 채워지고, 없으면 `null` / 빈 배열이다.
 - **`analysis`에는 상품 전체 평균이 실린다:** `avgPolicyIndexV4`, `v4LevelCounts`. 카탈로그 동기화로 저장한 값이라 이 페이지 리뷰만의 평균이 아니다. 동기화되지 않은 상품은 null. `avgPolicyIndexV3` 는 늘 null 이다.
 - **v4.0 결과는 `*V4` 필드로 온다(#255).** 화면 등급·지수는 v4 를 쓴다.
