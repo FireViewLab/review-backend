@@ -449,10 +449,9 @@ Data 서버가 `(platform, productId)` 로 상품을 가리키므로 프론트�
 - **`analysis` 의 리뷰 수는 둘이다.** `reviewCount` 는 **분석 입력(표본) 수**, `sourceReviewCount` 는 **Data 서버가 가진 원본 리뷰 수**다. `sampled: true` 면 원본 중 일부만 분석했으므로 표본에 들지 않은 리뷰는 `DONE` 이어도 `rti` 가 null 이다. 둘 다 `product.reviewCount`(쇼핑몰 표시 수)와 다를 수 있다. 구버전 Data 서버(표본 정책 전)면 `sampled`·`sourceReviewCount` 가 null 이다.
 - 리뷰는 **cursor 페이지네이션**이다. `reviews.nextCursor` 를 다음 요청의 `?cursor=` 에 그대로 넣는다. null 이면 마지막 페이지다.
 - **리뷰마다 신호 점수 `textScore`·`behaviorScore`·`networkScore`(0~100)가 실린다.** 계산 불가면 null이다. 리뷰 상세 화면의 세부 점수가 이 값을 쓴다.
-- **v2 계약 리뷰는 v3.1 설명도 Data 원본 이름으로 싣는다:** `analysisSummaryKo`(한 문단 설명), `rulesReasonsKo`(상세 근거 문장), `evidenceReasonsV3`(근거 코드), `reasonSource`. v2 화면은 `reasons` 대신 이 필드를 읽는다.
-- **`analysis`에는 상품 전체 평균이 실린다:** `avgPolicyIndexV3`(v2 상품의 v3.1 정책 지수 평균), `avgPolicyIndexV4`, `v4LevelCounts`. 카탈로그 동기화로 저장한 값이라 이 페이지 리뷰만의 평균이 아니다. 동기화되지 않은 상품은 null.
-- **v2 계약 리뷰는 v3.1 점수를 `policyIndexV3`·`evidenceLevelV3`(대문자)로도 싣는다.** `rti`·`level` 과 같은 값이다. 화면이 v2 리뷰에서 이 이름을 읽으므로 함께 내린다.
-- **v4.0 결과는 `*V4` 필드로 따로 온다(#255).** 화면 등급·지수는 v4 를 쓴다. `rti`·`level`·`reasons` 는 v3.1 값 그대로 남아 있어, 읽는 키만 바꾸면 되돌릴 수 있다.
+- **분석은 v4.0 하나다(#273).** Data 서버가 v0.5·v3.1 결과를 보내지 않는다. 리뷰의 `rti`·`level`·`textScore`·`behaviorScore`·`networkScore`·`policyIndexV3`·`evidenceLevelV3`·`analysisSummaryKo`·`reasonSource` 는 **늘 null**, `reasons`·`rulesReasonsKo`·`evidenceReasonsV3` 는 **늘 빈 배열**이다. 배포된 화면이 키를 읽고 있어 자리만 남겼고, 화면이 키를 지우면 뺀다. `analysis.contractVersion` 은 `v4` 로 온다.
+- **`analysis`에는 상품 전체 평균이 실린다:** `avgPolicyIndexV4`, `v4LevelCounts`. 카탈로그 동기화로 저장한 값이라 이 페이지 리뷰만의 평균이 아니다. 동기화되지 않은 상품은 null. `avgPolicyIndexV3` 는 늘 null 이다.
+- **v4.0 결과는 `*V4` 필드로 온다(#255).** 화면 등급·지수는 v4 를 쓴다.
 
   | 리뷰 필드 | 값 |
   |---|---|
@@ -462,7 +461,7 @@ Data 서버가 `(platform, productId)` 로 상품을 가리키므로 프론트�
   | `textProbabilityV4` | 0~1 의심 확률 |
   | `modelVersionV4` / `policyVersionV4` | 예: `ptext-koelectra-v4.0` / `text-first-v1` |
 
-  - v4 가 아직 채워지지 않은 리뷰는 v4 필드가 전부 **null** 이다. v3 값으로 대신 채우지 않는다. "분석 중"으로 표시한다.
+  - v4 결과가 없는 리뷰는 v4 필드가 전부 **null** 이다. "분석 중"으로 표시한다.
   - `reasons`(v3.1 설명)는 v3.1 등급 기준이라 v4 등급과 함께 보여주지 않는다. v4 는 아직 설명 문장이 없다.
   - 문구는 "가짜 리뷰" 같은 단정 대신 "주의가 필요한 리뷰"처럼 쓴다.
   - 목록(`GET /api/products`, `/api/products/catalog`)에는 상품 단위로 `avgPolicyIndexV4`(평균 지수)와 `v4LevelCounts`(`{"SAFE": 2, "WARN": 1, "DANGER": 0}`)가 온다. 없으면 null 이고, `avgRti`(v3.1)로 대신 채우지 않는다.

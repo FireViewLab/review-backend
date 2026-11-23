@@ -30,7 +30,9 @@ Flutter 홈·검색 배지는 실제 점수와 분석 대기/분석 중/실패/�
 목록 필드 analysisSampled/analysisReviewCount/analysisSourceReviewCount는 nullable 추가 컬럼이다.
 analysis_scored_review_count(점수가 나온 리뷰 수)도 nullable 추가 컬럼이다. 응답에는 내리지 않고 대시보드가 리뷰가 충분한지 볼 때 쓴다. 기존 행은 다음 동기화(최대 5분)에서 채워지고, 그 전까지는 대시보드에 오르지 않는다.
 v4.0 목록 필드 avgPolicyIndexV4·v4LevelCounts(#255)도 nullable 추가 컬럼(avg_policy_indexv4, v4safe_count, v4warn_count, v4danger_count)이다. 숫자 뒤 대문자에는 밑줄이 붙지 않는 Spring 기본 이름 규칙 때문이다.
-v4 값이 범위를 벗어나면 상품은 그대로 저장하고 v4 값만 비운다. 완료가 아닌 상태가 되면 v3 평균과 함께 지운다.
+Data 가 분석을 v4.0 하나로 바꾸며(#273) `avg_rti`·`avg_policy_index_v3` 를 보내지 않는다. `scored_review_count` 는 v4 결과가 있는 리뷰 수(`v4_level_counts` 합)다.
+Spring 은 `avg_policy_index_v4` 로 평균을 검증한다(점수 매긴 리뷰가 있는데 평균이 없거나 0~100 밖이면 상품을 건너뛴다). 통과한 평균은 `avg_policy_indexv4` 와 함께 `avg_rti` 에도 적는다. `avg_rti` 는 목록 등급·대시보드 추천·챗봇 상품 평균이 읽는 상품 대표 점수이기 때문이다.
+등급 분포가 이상하면 상품은 그대로 저장하고 분포만 비운다. 완료가 아닌 상태가 되면 평균·분포를 함께 지운다.
 기존 행은 첫 동기화로 채우며 원본 리뷰·리뷰별 점수는 Data에 유지한다.
 
 한 번 실행에 최대 100페이지(1만 건)를 읽는다. 다음 페이지가 남으면 다음 실행(5분 뒤)이 그 자리부터 이어 읽고, 끝까지 읽으면 다시 처음부터 읽는다. 실패하거나 페이지 이동이 이상하면 처음부터 다시 읽는다.
