@@ -26,28 +26,19 @@ class DataCatalogSummaryJpaTest {
     @Autowired ProductRepository products;
     @Autowired EntityManager em;
 
-    private DataServerCatalogPage.Entry entry(String status, Double score, int scored, boolean sampled) {
-        var p = new DataServerProduct("kurly", "p", "상품", "https://x", null, null, null,
-                1000, "https://img", null, 2000, null, null);
-        var a = new DataServerCatalogPage.Analysis(status, 1L, score, scored,
-                sampled ? 500 : 1, sampled ? 1318 : 1, sampled, "m1", "p1", null, "v0.5", null, null);
-        return new DataServerCatalogPage.Entry(p, a);
+    /** Data v4.0 단독 응답(#273). scored_review_count 는 등급 분포의 합이다 */
+    private DataServerCatalogPage.Entry entry(String status, Double avgV4, int scored, boolean sampled) {
+        return entry(status, avgV4, scored, sampled,
+                scored == 0 ? null : new DataServerCatalogPage.LevelCounts(scored, 0, 0));
     }
 
-    private DataServerCatalogPage.Entry v2Entry(Double avgPolicyIndex, int scored) {
+    private DataServerCatalogPage.Entry entry(String status, Double avgV4, int scored, boolean sampled,
+                                              DataServerCatalogPage.LevelCounts counts) {
         var p = new DataServerProduct("kurly", "p", "상품", "https://x", null, null, null,
                 1000, "https://img", null, 2000, null, null);
-        var a = new DataServerCatalogPage.Analysis("done", 2L, null, scored,
-                1, 1, false, "v3.1", "policy-v3", avgPolicyIndex, "v2", null, null);
-        return new DataServerCatalogPage.Entry(p, a);
-    }
-
-    private DataServerCatalogPage.Entry v4Entry(String status, Double avgV4, DataServerCatalogPage.LevelCounts counts) {
-        var p = new DataServerProduct("kurly", "p", "상품", "https://x", null, null, null,
-                1000, "https://img", null, 2000, null, null);
-        boolean done = "done".equals(status);
-        var a = new DataServerCatalogPage.Analysis(status, 3L, null, done ? 3 : 0,
-                3, 3, false, "v3.1", "policy-v3", done ? 45.0 : null, "v2", avgV4, counts);
+        var a = new DataServerCatalogPage.Analysis(status, 1L, scored,
+                sampled ? 500 : Math.max(scored, 1), sampled ? 1318 : Math.max(scored, 1), sampled,
+                "ptext-koelectra-v4.0", "text-first-v1", "v4", avgV4, counts);
         return new DataServerCatalogPage.Entry(p, a);
     }
 
@@ -104,61 +95,48 @@ class DataCatalogSummaryJpaTest {
     }
 
     @Test
-    void v2_상품은_정책_지수_평균을_저장한다() {
-        // #250: v2 상품은 avg_rti 가 null 이다. 예전에는 "점수 매긴 리뷰가 있는데 평균이 없다"로 보고 건너뛰었다
-        assertThat(registry.upsertCatalogPage(List.of(v2Entry(72.5, 1)))).isEqualTo(1);
-
-        assertThat(read().avgRti()).isEqualTo(72.5);
-    }
-
-    @Test
-    void v4_평균과_등급_분포를_v3_평균과_따로_저장한다() {
-        // #255: 화면은 v4 를 읽고, v3.1 평균(avgRti)은 되돌리기용으로 남는다
-        registry.upsertCatalogPage(List.of(v4Entry("done", 81.0,
+    void v4_평균을_상품_대표_점수와_v4_평균에_함께_저장한다() {
+        // #273: Data 가 v3.1 평균을 보내지 않는다. 목록 등급·대시보드·챗봇이 읽는 avgRti 도 v4 평균이다
+        registry.upsertCatalogPage(List.of(entry("done", 81.0, 3, false,
                 new DataServerCatalogPage.LevelCounts(2, 1, 0))));
 
         var response = read();
-        assertThat(response.avgRti()).isEqualTo(45.0);
+        assertThat(response.avgRti()).isEqualTo(81.0);
         assertThat(response.avgPolicyIndexV4()).isEqualTo(81.0);
         assertThat(response.v4LevelCounts()).isEqualTo(new ReviewLevelCounts(2, 1, 0));
     }
 
     @Test
-    void v4가_아직_없으면_v3로_채우지_않고_null로_둔다() {
-        registry.upsertCatalogPage(List.of(v4Entry("done", null, null)));
-
-        var response = read();
-        assertThat(response.avgRti()).isEqualTo(45.0);
-        assertThat(response.avgPolicyIndexV4()).isNull();
-        assertThat(response.v4LevelCounts()).isNull();
+    void 점수_매긴_리뷰가_있는데_v4_평균이_없으면_건너뛴다() {
+        assertThat(registry.upsertCatalogPage(List.of(entry("done", null, 3, false)))).isZero();
+        assertThat(products.count()).isZero();
     }
 
     @Test
-    void v4_값이_이상해도_상품은_등록하고_v4만_비운다() {
-        assertThat(registry.upsertCatalogPage(List.of(v4Entry("done", 120.0,
+    void 등급_분포가_이상해도_상품은_등록하고_분포만_비운다() {
+        assertThat(registry.upsertCatalogPage(List.of(entry("done", 81.0, 1, false,
                 new DataServerCatalogPage.LevelCounts(1, null, 0))))).isEqualTo(1);
 
         var response = read();
-        assertThat(response.avgRti()).isEqualTo(45.0);
-        assertThat(response.avgPolicyIndexV4()).isNull();
+        assertThat(response.avgPolicyIndexV4()).isEqualTo(81.0);
         assertThat(response.v4LevelCounts()).isNull();
     }
 
     @Test
     void 재분석에_들어가면_v4_값도_지운다() {
-        registry.upsertCatalogPage(List.of(v4Entry("done", 81.0,
+        registry.upsertCatalogPage(List.of(entry("done", 81.0, 3, false,
                 new DataServerCatalogPage.LevelCounts(2, 1, 0))));
-        registry.upsertCatalogPage(List.of(v4Entry("running", 81.0,
-                new DataServerCatalogPage.LevelCounts(2, 1, 0))));
+        registry.upsertCatalogPage(List.of(entry("running", null, 0, false)));
 
         var response = read();
+        assertThat(response.avgRti()).isNull();
         assertThat(response.avgPolicyIndexV4()).isNull();
         assertThat(response.v4LevelCounts()).isNull();
     }
 
     @Test
     void 상세_조회가_재분석_상태를_적으면_v4_값도_지운다() {
-        registry.upsertCatalogPage(List.of(v4Entry("done", 81.0,
+        registry.upsertCatalogPage(List.of(entry("done", 81.0, 3, false,
                 new DataServerCatalogPage.LevelCounts(2, 1, 0))));
         em.flush();
         products.updateAnalysisStatus("kurly", "p", "RUNNING", java.time.LocalDateTime.now());
@@ -170,8 +148,8 @@ class DataCatalogSummaryJpaTest {
     }
 
     @Test
-    void v2_상품도_점수가_범위를_벗어나면_등록하지_않는다() {
-        assertThat(registry.upsertCatalogPage(List.of(v2Entry(120.0, 1)))).isZero();
+    void 점수가_범위를_벗어나면_등록하지_않는다() {
+        assertThat(registry.upsertCatalogPage(List.of(entry("done", 120.0, 1, false)))).isZero();
         assertThat(products.count()).isZero();
     }
 }

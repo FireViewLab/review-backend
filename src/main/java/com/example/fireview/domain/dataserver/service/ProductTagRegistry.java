@@ -206,31 +206,28 @@ public class ProductTagRegistry {
                 log.warn("[DataCatalog] 분석 범위가 잘못된 상품을 건너뛴다 - {}/{}", p.platform(), p.productId());
                 continue;
             }
-            Double avg = status == AnalysisStatus.DONE ? a.avgScore() : null;
-            if (status == AnalysisStatus.DONE && ((avg == null && a.scoredReviewCount() != 0)
+            // Data 는 v4.0 평균만 보낸다(#273). scored_review_count 도 v4 결과가 있는 리뷰 수라 둘이 짝이 맞아야 한다
+            boolean done = status == AnalysisStatus.DONE;
+            Double avg = done ? a.avgPolicyIndexV4() : null;
+            if (done && ((avg == null && a.scoredReviewCount() != 0)
                     || (avg != null && (!Double.isFinite(avg) || avg < 0 || avg > 100 || a.scoredReviewCount() == 0)))) {
                 log.warn("[DataCatalog] 분석 평균이 잘못된 상품을 건너뛴다 - {}/{}", p.platform(), p.productId());
                 continue;
             }
             upsertForDisplay(p);
-            // v4 는 추가 필드라 값이 이상해도 상품을 건너뛰지 않고 v4 만 비운다(#255)
-            boolean done = status == AnalysisStatus.DONE;
-            Double avgV4 = done ? validIndex(a.avgPolicyIndexV4()) : null;
+            // 등급 분포는 보조 정보라 값이 이상해도 상품을 건너뛰지 않고 분포만 비운다(#255)
             DataServerCatalogPage.LevelCounts countsV4 = done ? validCounts(a.v4LevelCounts()) : null;
+            // avg_rti 는 목록 등급·대시보드 추천·챗봇 평균이 읽는 상품 대표 점수다. v3.1 이 없어졌으니 v4 평균을 싣는다
             productRepository.updateAnalysisSummary(p.platform(), p.productId(), status.name(),
                     LocalDateTime.now(), avg, a.sampled(), a.reviewCount(), a.sourceReviewCount(),
                     a.scoredReviewCount(),
-                    avgV4,
+                    avg,
                     countsV4 == null ? null : countsV4.safe(),
                     countsV4 == null ? null : countsV4.warn(),
                     countsV4 == null ? null : countsV4.danger());
             saved++;
         }
         return saved;
-    }
-
-    private static Double validIndex(Double index) {
-        return index == null || !Double.isFinite(index) || index < 0 || index > 100 ? null : index;
     }
 
     /** 셋 중 하나라도 비었거나 음수면 통째로 버린다. 일부만 있는 분포는 화면이 잘못 그린다 */

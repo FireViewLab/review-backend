@@ -221,7 +221,7 @@ class DataServerAnalysisJsonTest {
     void 카탈로그_v4_평균과_대문자_키_등급_분포를_읽는다() throws JsonProcessingException {
         DataServerCatalogPage page = DataServerFixtures.MAPPER.readValue("""
                 {"items": [{"product": {"platform": "kurly", "product_id": "p"},
-                  "analysis": {"status": "done", "avg_policy_index_v3": 45.0, "contract_version": "v2",
+                  "analysis": {"status": "done", "contract_version": "v4", "scored_review_count": 3,
                     "avg_policy_index_v4": 81.0,
                     "v4_level_counts": {"SAFE": 2, "WARN": 1, "DANGER": 0}}}],
                  "next_cursor": null}
@@ -230,7 +230,8 @@ class DataServerAnalysisJsonTest {
         DataServerCatalogPage.Analysis a = page.items().get(0).analysis();
         assertThat(a.avgPolicyIndexV4()).isEqualTo(81.0);
         assertThat(a.v4LevelCounts()).isEqualTo(new DataServerCatalogPage.LevelCounts(2, 1, 0));
-        assertThat(a.avgScore()).isEqualTo(45.0);
+        assertThat(a.scoredReviewCount()).isEqualTo(3);
+        assertThat(a.contractVersion()).isEqualTo("v4");
     }
 
     @Test
