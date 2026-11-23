@@ -2,6 +2,7 @@ package com.example.fireview.domain.cartschedule.service;
 
 import com.example.fireview.domain.cartschedule.NextRunCalculator;
 import com.example.fireview.domain.cartschedule.ScheduleRequest;
+import com.example.fireview.domain.cartschedule.ScheduleRule;
 import com.example.fireview.domain.cartschedule.ScheduleText;
 import com.example.fireview.domain.cartschedule.dto.CartScheduleResponse;
 import com.example.fireview.domain.cartschedule.dto.ScheduleProposal;
@@ -103,6 +104,34 @@ public class CartScheduleService {
             throw new CustomException(ErrorCode.CART_SCHEDULE_NOT_CONFIRMABLE);
         }
         return CartScheduleResponse.from(scheduleRepository.findById(scheduleId).orElseThrow());
+    }
+
+    /**
+     * 확인 단계 없이 바로 확정된 예약을 만든다. 사용자가 요약을 보고 버튼을 직접 눌렀을 때 쓴다(반복 담기 추천).
+     *
+     * @return 만들 수 없으면 비어 있다 — 같은 상품에 진행 중 예약이 있거나, 진행 중 예약이 한도이거나,
+     *         한 번 예약이 이미 지났다
+     */
+    @Transactional
+    public Optional<CartScheduleResponse> createActive(User user, Product product, ScheduleRule rule, int quantity) {
+        lockUser(user);
+        if (scheduleRepository.countByUser_IdAndStatus(user.getId(), CartSchedule.ACTIVE) >= MAX_ACTIVE
+                || scheduleRepository.findActiveProductIds(user.getId()).contains(product.getId())) {
+            return Optional.empty();
+        }
+        LocalDateTime now = LocalDateTime.now(clock);
+        LocalDateTime next = NextRunCalculator.next(rule, now);
+        if (next == null) return Optional.empty();
+        CartSchedule saved = scheduleRepository.save(CartSchedule.builder()
+                .user(user)
+                .product(product)
+                .quantity(quantity)
+                .rule(rule)
+                .nextRunAt(next)
+                .status(CartSchedule.ACTIVE)
+                .createdAt(now)
+                .build());
+        return Optional.of(CartScheduleResponse.from(saved));
     }
 
     /** 예약을 취소한다. 이미 끝났거나 취소한 예약은 그대로 둔다. 상태는 조건부 UPDATE 로 바꾼다 */
