@@ -93,6 +93,19 @@ public record ScheduleRequest(ScheduleRule rule, int quantity, String productRef
         return Optional.empty();
     }
 
+    /**
+     * {@link #parse} 의 반대. 모델에게 예약 제안을 보여줄 때 SCHEDULE 줄과 같은 형식으로 적는다.
+     * 예: {@code weekly SAT 09:00 qty=1}
+     */
+    public static String format(ScheduleRule rule, int quantity) {
+        String when = switch (rule.repeatType()) {
+            case ScheduleRule.ONCE -> "once " + rule.runDate();
+            case ScheduleRule.WEEKLY -> "weekly " + rule.dayOfWeek().name().substring(0, 3);
+            default -> "monthly " + rule.dayOfMonth();
+        };
+        return "%s %02d:%02d qty=%d".formatted(when, rule.runTime().getHour(), rule.runTime().getMinute(), quantity);
+    }
+
     /** {@code group} 이 시, {@code group + 1} 이 분이다. 시각이 없으면 09:00 */
     private static LocalTime time(Matcher m, int group) {
         if (m.group(group) == null) return DEFAULT_TIME;
