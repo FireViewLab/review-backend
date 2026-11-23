@@ -5,6 +5,8 @@ import com.example.fireview.domain.feedback.entity.AnalysisFeedbackStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -39,4 +41,7 @@ public interface AnalysisFeedbackRepository extends JpaRepository<AnalysisFeedba
 
     /** 상태별 분석 피드백 수 집계 */
     long countByStatus(AnalysisFeedbackStatus status);
+
+    /** 회원 탈퇴(UserDataPurger). 근거 신호가 컬렉션 테이블에 있어 일괄 DELETE 대신 엔티티로 지운다 */
+    List<AnalysisFeedback> findAllBySubmitter_Id(Long userId);
 }

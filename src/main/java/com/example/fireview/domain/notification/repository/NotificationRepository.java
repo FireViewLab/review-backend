@@ -23,4 +23,9 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
 
     /** 단건 조회 (본인 확인) */
     java.util.Optional<Notification> findByIdAndReceiver_Id(Long notificationId, Long receiverId);
+
+    /** 회원 탈퇴(UserDataPurger). 행마다 DELETE 를 보내지 않고 한 문장으로 지운다 */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("DELETE FROM Notification x WHERE x.receiver.id = :userId")
+    int deleteAllOfUser(@Param("userId") Long userId);
 }
