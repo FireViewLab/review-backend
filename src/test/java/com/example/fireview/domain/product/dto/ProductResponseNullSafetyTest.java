@@ -142,13 +142,22 @@ class ProductResponseNullSafetyTest {
     }
 
     @Test
-    void Data에_리뷰가_저장돼_있으면_리뷰_수_0은_null이다() {
-        // 11번가는 검색 응답에 리뷰 수를 주지 않아 0 이 남는다. 리뷰를 분석까지 했으면 0 개일 수 없다
+    void 쇼핑몰_리뷰_수를_모르면_수집된_리뷰_수로_채운다() {
+        // #276: 11번가·올리브영은 리뷰 수를 주지 않아 0 이 남는다. 리뷰를 수집했으면 그 수를 쓴다
         Product tag = tagOnly();
         tag.setReviewCount(0);
         tag.setAnalysisSourceReviewCount(15);
 
-        assertThat(ProductResponse.from(tag).reviewCount()).isNull();
+        assertThat(ProductResponse.from(tag).reviewCount()).isEqualTo(15);
+    }
+
+    @Test
+    void 쇼핑몰_리뷰_수를_알면_수집된_리뷰_수로_덮지_않는다() {
+        Product tag = tagOnly();
+        tag.setReviewCount(5305);
+        tag.setAnalysisSourceReviewCount(200);
+
+        assertThat(ProductResponse.from(tag).reviewCount()).isEqualTo(5305);
     }
 
     @Test
