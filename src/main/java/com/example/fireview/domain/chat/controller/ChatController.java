@@ -176,6 +176,27 @@ public class ChatController {
         return ApiResponse.success(messages);
     }
 
+    @Operation(summary = "대화 삭제", description = """
+            대화 하나를 메시지까지 지운다. 본인 대화가 아니면 403, 없으면 404.
+            오늘 쓴 사용량은 되돌리지 않는다.
+            """)
+    @DeleteMapping("/sessions/{sessionId}")
+    public ApiResponse<Void> deleteSession(
+            @PathVariable Long sessionId,
+            @AuthenticationPrincipal Jwt jwt) {
+        chatService.deleteSession(jwt.getSubject(), sessionId);
+        return ApiResponse.ok("대화를 삭제했습니다.");
+    }
+
+    @Operation(summary = "대화 전체 삭제", description = """
+            내 대화를 모두 지운다. `data` 는 지운 대화 수다(없으면 0).
+            오늘 쓴 사용량은 되돌리지 않는다.
+            """)
+    @DeleteMapping("/sessions")
+    public ApiResponse<Integer> deleteAllSessions(@AuthenticationPrincipal Jwt jwt) {
+        return ApiResponse.success("대화를 모두 삭제했습니다.", chatService.deleteAllSessions(jwt.getSubject()));
+    }
+
     // ────────────────────────────── 내부 ──────────────────────────────
 
     /**
