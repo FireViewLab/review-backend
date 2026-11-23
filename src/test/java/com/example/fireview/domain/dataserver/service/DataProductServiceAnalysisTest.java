@@ -344,6 +344,28 @@ class DataProductServiceAnalysisTest {
     }
 
     @Test
+    void analysis에_리뷰_결과의_v4_버전을_싣는다() {
+        // #276: modelVersion·policyVersion 은 job 버전이라 v4 로 다시 채운 상품은 v3.1 값이 남는다
+        JsonNode analysis = new ObjectMapper().valueToTree(callWith("product-analysis-v4-done.json")).get("analysis");
+
+        assertThat(analysis.get("modelVersionV4").asText()).isEqualTo("ptext-koelectra-v4.0");
+        assertThat(analysis.get("policyVersionV4").asText()).isEqualTo("text-first-v1");
+    }
+
+    @Test
+    void v4_결과가_있는_리뷰가_없으면_v4_버전은_null이다() {
+        DataServerProductResponse done = DataServerFixtures.load("product-analysis-done.json");
+        DataServerAnalysis a = done.analysis();
+        DataProductResponse res = callWith(new DataServerProductResponse(done.status(), done.product(),
+                done.reviews(), done.job(), new DataServerAnalysis(a.status(), a.job(), a.inputHash(),
+                a.modelVersion(), a.policyVersion(), a.reviewCount(), a.sampled(), a.sourceReviewCount(),
+                a.contractVersion(), List.of(a.resultsByReviewId().get("r-3")))));
+
+        assertThat(res.analysis().modelVersionV4()).isNull();
+        assertThat(res.analysis().policyVersionV4()).isNull();
+    }
+
+    @Test
     void 번호표가_없으면_상품_평균은_비어_있다() {
         DataProductResponse res = callWith("product-analysis-v4-done.json");
 
