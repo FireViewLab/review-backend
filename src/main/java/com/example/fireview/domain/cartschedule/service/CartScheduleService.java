@@ -88,6 +88,7 @@ public class CartScheduleService {
      * <p>상태는 엔티티를 고쳐 저장하지 않고 조건부 UPDATE 로 바꾼다. 읽어 둔 엔티티로 저장하면
      * 그 사이 취소된 예약을 되살리거나 실행기가 넘긴 회차를 되돌려 한 번 더 담는다(#269 리뷰).
      * 한도 검사와 확정은 사용자 행 잠금 안에서 해서, 동시에 확정해도 한도를 넘지 않는다.
+     * 같은 상품에 이미 진행 중 예약이 있으면 확정하지 않는다.
      */
     @Transactional
     public CartScheduleResponse confirm(String userEmail, Long scheduleId) {
@@ -95,7 +96,9 @@ public class CartScheduleService {
         CartSchedule schedule = owned(user, scheduleId);
         lockUser(user);
         LocalDateTime now = LocalDateTime.now(clock);
-        if (scheduleRepository.countByUser_IdAndStatus(user.getId(), CartSchedule.ACTIVE) >= MAX_ACTIVE) {
+        // 한 상품에 진행 중 예약은 하나다. 남은 제안이나 메인 버튼 예약과 겹쳐 같은 상품이 두 번씩 담기지 않게 한다(#271 리뷰)
+        if (scheduleRepository.countByUser_IdAndStatus(user.getId(), CartSchedule.ACTIVE) >= MAX_ACTIVE
+                || scheduleRepository.findActiveProductIds(user.getId()).contains(schedule.getProduct().getId())) {
             throw new CustomException(ErrorCode.CART_SCHEDULE_NOT_CONFIRMABLE);
         }
         LocalDateTime next = NextRunCalculator.next(schedule.rule(), now);
