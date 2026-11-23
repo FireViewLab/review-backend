@@ -93,4 +93,14 @@ class ScheduleRequestTest {
         assertThat(ScheduleRequest.parse("weekly SUN 09:00 qty=1 product=", NOW)).isEmpty();
         assertThat(ScheduleRequest.parse("weekly SUN 09:00 qty=1 product=kurly-1 extra", NOW)).isEmpty();
     }
+    @Test
+    void 규칙을_SCHEDULE_줄_형식으로_적고_다시_읽을_수_있다() {
+        ScheduleRule weekly = ScheduleRule.weekly(DayOfWeek.SATURDAY, LocalTime.of(9, 0));
+        ScheduleRule monthly = ScheduleRule.monthly(20, LocalTime.of(18, 30));
+
+        assertThat(ScheduleRequest.format(weekly, 1)).isEqualTo("weekly SAT 09:00 qty=1");
+        assertThat(ScheduleRequest.format(monthly, 2)).isEqualTo("monthly 20 18:30 qty=2");
+        assertThat(ScheduleRequest.parse(ScheduleRequest.format(weekly, 1), NOW))
+                .contains(new ScheduleRequest(weekly, 1));
+    }
 }
