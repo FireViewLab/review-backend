@@ -19,8 +19,8 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -29,7 +29,7 @@ import java.util.Optional;
  * <p>{@code app.chat.stub-analysis.enabled=false} 일 때 {@link StubProductAnalysisAdapter}
  * 대신 이 빈이 쓰인다.
  *
- * <p><b>대표 리뷰의 RTI·등급만 채운다.</b> Data 서버가 주는 분석 결과는 리뷰 단위이고
+ * <p><b>대표 리뷰의 v4.0 정책 지수·등급만 채운다(#273).</b> Data 서버가 주는 분석 결과는 리뷰 단위이고
  * 그것도 이번 리뷰 페이지 것뿐이다.
  *
  * <p><b>상품 평균 RTI·신뢰등급은 카탈로그 동기화가 저장한 값만 쓴다.</b> 상세 응답의 결과는
@@ -60,26 +60,6 @@ public class DataServerProductAnalysisAdapter implements ProductAnalysisPort {
 
     /** 점수 있는 리뷰가 이만큼 모이면 더 받지 않는다 */
     private static final int ENOUGH_SCORED = 3;
-
-    /**
-     * AI 판단 근거 코드 → 화면 라벨. 프론트 {@code ReviewEvidenceFormatter} 와 같은 문구를 쓴다.
-     * 접두사(TEXT_·BEHAVIOR_·NETWORK_)가 없는 옛 코드도 같은 라벨로 받는다. 모르는 코드는 싣지 않는다.
-     */
-    private static final Map<String, String> REASON_LABELS = Map.ofEntries(
-            Map.entry("REPETITIVE_KEYWORD", "반복 표현"),
-            Map.entry("SHORT_REVIEW", "짧은 리뷰"),
-            Map.entry("EXCESSIVE_EXCLAMATION", "잦은 느낌표"),
-            Map.entry("OVERLY_POSITIVE_SENTIMENT", "강한 긍정 표현"),
-            Map.entry("PURCHASE_NOT_VERIFIED", "구매 인증 미확인"),
-            Map.entry("NEW_ACCOUNT", "가입 초기 작성"),
-            Map.entry("MULTIPLE_REVIEWS_SAME_DAY", "하루에 여러 리뷰"),
-            Map.entry("SIMILAR_REVIEW_PATTERN", "비슷한 리뷰 내용"),
-            Map.entry("SIMILAR_REVIEW_CLUSTER", "유사 리뷰 묶음"),
-            Map.entry("LOW_QUALITY_SCORE", "낮은 내용 품질 점수"),
-            Map.entry("PURCHASE_UNKNOWN", "구매 여부 불명확"),
-            Map.entry("FREE_TRIAL_REVIEW", "체험·무상 제공 가능성"),
-            Map.entry("NO_IMAGE_ATTACHED", "첨부 사진 없음"),
-            Map.entry("REPURCHASE_SIGNAL", "재구매 신호"));
 
     /**
      * Data 서버 level → 챗봇 등급 어휘. 시스템 프롬프트가 "안전/주의/위험" 으로 말하므로 맞춘다.
@@ -181,7 +161,7 @@ public class DataServerProductAnalysisAdapter implements ProductAnalysisPort {
     }
 
     private static long scoredCount(Map<DataServerReview, DataServerReviewAnalysis> collected) {
-        return collected.values().stream().filter(a -> a != null && a.rti() != null).count();
+        return collected.values().stream().filter(a -> a != null && a.policyIndexV4() != null).count();
     }
 
     private static boolean isDone(DataServerAnalysis analysis) {
@@ -234,7 +214,7 @@ public class DataServerProductAnalysisAdapter implements ProductAnalysisPort {
     }
 
     /**
-     * 점수 있는 리뷰를 먼저 싣는다. 그중 RTI 가 가장 낮은 리뷰를 맨 앞에 두고 나머지는 받은 순서(최신순)대로.
+     * 점수 있는 리뷰를 먼저 싣는다. 그중 v4 지수가 가장 낮은 리뷰를 맨 앞에 두고 나머지는 받은 순서(최신순)대로.
      * 점수 있는 리뷰가 모자라면 점수 없는 리뷰로 채운다. 최저 리뷰는 <b>받아 온 페이지 안에서</b>의
      * 최저일 뿐이라 프롬프트도 그렇게 설명한다.
      */
@@ -242,10 +222,10 @@ public class DataServerProductAnalysisAdapter implements ProductAnalysisPort {
             Map<DataServerReview, DataServerReviewAnalysis> collected) {
         List<Map.Entry<DataServerReview, DataServerReviewAnalysis>> scored = new ArrayList<>();
         List<Map.Entry<DataServerReview, DataServerReviewAnalysis>> unscored = new ArrayList<>();
-        collected.entrySet().forEach(e -> (e.getValue() != null && e.getValue().rti() != null ? scored : unscored).add(e));
+        collected.entrySet().forEach(e -> (e.getValue() != null && e.getValue().policyIndexV4() != null ? scored : unscored).add(e));
 
         List<Map.Entry<DataServerReview, DataServerReviewAnalysis>> picked = new ArrayList<>();
-        scored.stream().min(Comparator.comparingDouble(e -> e.getValue().rti())).ifPresent(picked::add);
+        scored.stream().min(Comparator.comparingDouble(e -> e.getValue().policyIndexV4())).ifPresent(picked::add);
         scored.stream().filter(e -> !picked.contains(e)).forEach(picked::add);
         picked.addAll(unscored);
 
@@ -258,25 +238,17 @@ public class DataServerProductAnalysisAdapter implements ProductAnalysisPort {
                             r.content(),
                             // Data 서버 평점은 NUMERIC(3,2) 라 4.5 가 올 수 있다
                             r.rating() == null ? null : (int) Math.round(r.rating()),
-                            analysis == null ? null : analysis.rti(),
-                            analysis == null ? null : toGrade(analysis.level()),
-                            analysis == null ? List.of() : reasonLabels(analysis.reasons()));
+                            analysis == null ? null : analysis.policyIndexV4(),
+                            analysis == null ? null : toGrade(analysis.levelV4()),
+                            // v4.0 은 판단 근거를 주지 않는다(#273)
+                            List.of());
                 })
-                .toList();
-    }
-
-    private static List<String> reasonLabels(List<String> codes) {
-        return codes.stream()
-                .filter(Objects::nonNull)
-                .map(c -> c.trim().toUpperCase().replaceFirst("^(TEXT|BEHAVIOR|NETWORK)_", ""))
-                .map(REASON_LABELS::get)
-                .filter(Objects::nonNull)
-                .distinct()
                 .toList();
     }
 
     /** 모르는 값이나 null(계산 불가)은 null. 아무 등급으로나 채우지 않는다 */
     private static String toGrade(String level) {
-        return level == null ? null : GRADE_BY_LEVEL.get(level);
+        // v4 등급은 대문자({@code SAFE})로 온다
+        return level == null ? null : GRADE_BY_LEVEL.get(level.toLowerCase(Locale.ROOT));
     }
 }

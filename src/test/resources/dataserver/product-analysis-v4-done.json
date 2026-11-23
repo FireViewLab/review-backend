@@ -1,0 +1,30 @@
+{
+  "status": "fresh",
+  "product": {"platform": "kurly", "product_id": "1000146248", "name": "샘플 상품", "url": "https://kurly.com/p", "brand": "브랜드", "manufacturer": null, "seller": null, "price": 29900, "thumbnail_url": "https://img", "category": "식품 > 간편식", "review_count": 128, "rating": 4.5, "last_collected_at": "2026-11-19T00:00:00+09:00"},
+  "reviews": {"items": [
+    {"review_id": "r-1", "content": "맛있어요", "rating": 5.0, "author": "user**", "written_at": "2026-11-01T10:00:00+09:00", "option": null, "images": [], "helpful_count": 3},
+    {"review_id": "r-2", "content": "좋아요", "rating": 5.0, "author": "kim**", "written_at": "2026-11-02T10:00:00+09:00", "option": null, "images": [], "helpful_count": 0},
+    {"review_id": "r-3", "content": "광고 같아요", "rating": 5.0, "author": "lee**", "written_at": "2026-11-03T10:00:00+09:00", "option": null, "images": [], "helpful_count": 0}
+  ], "next_cursor": null},
+  "analysis": {
+    "status": "done",
+    "job": {"id": 52, "platform": "kurly", "product_id": "1000146248", "status": "done", "attempt_count": 1,
+            "ai_job_id": "ai-v4", "input_review_count": 128, "last_error": null,
+            "completed_at": "2026-11-19T03:00:00+00:00"},
+    "input_hash": "sha256:def",
+    "model_version": "ptext-koelectra-v4.0",
+    "policy_version": "text-first-v1",
+    "contract_version": "v4",
+    "review_count": 128,
+    "sampled": true,
+    "source_review_count": 1318,
+    "results": [
+      {"review_id": "r-1", "text_probability_v4": 0.08, "text_score_v4": 91.5, "policy_index_v4": 88.0,
+       "level_v4": "SAFE", "model_version_v4": "ptext-koelectra-v4.0", "policy_version_v4": "text-first-v1"},
+      {"review_id": "r-2", "text_probability_v4": 0.41, "text_score_v4": 55.0, "policy_index_v4": 52.0,
+       "level_v4": "WARN", "model_version_v4": "ptext-koelectra-v4.0", "policy_version_v4": "text-first-v1"},
+      {"review_id": "r-3", "text_probability_v4": null, "text_score_v4": null, "policy_index_v4": null,
+       "level_v4": null, "model_version_v4": null, "policy_version_v4": null}
+    ]
+  }
+}

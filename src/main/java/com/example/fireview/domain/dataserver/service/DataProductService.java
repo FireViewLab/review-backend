@@ -149,7 +149,6 @@ public class DataProductService {
     private DataProductResponse.ProductAnalysis toAnalysis(AnalysisStatus status, DataServerAnalysis analysis,
                                                            Product cached) {
         if (analysis == null || !DataProductResponse.hasAnalysisResult(status)) return null;
-        boolean v2 = DataServerReviewAnalysis.CONTRACT_V2.equalsIgnoreCase(analysis.contractVersion());
         return new DataProductResponse.ProductAnalysis(
                 status,
                 analysis.modelVersion(),
@@ -158,8 +157,8 @@ public class DataProductService {
                 analysis.sampled(),
                 analysis.sourceReviewCount(),
                 analysis.contractVersion(),
-                // v2 상품은 동기화 때 v3.1 정책 지수 평균을 avgRti 칸에 저장한다(#250)
-                v2 && cached != null ? cached.getAvgRti() : null,
+                // v3.1 평균. Data 가 더는 보내지 않는다(#273)
+                null,
                 cached == null ? null : cached.getAvgPolicyIndexV4(),
                 cached == null ? null : ReviewLevelCounts.of(
                         cached.getV4SafeCount(), cached.getV4WarnCount(), cached.getV4DangerCount()));
@@ -186,18 +185,9 @@ public class DataProductService {
                 r.writtenAt(), r.option(),
                 r.images() == null ? List.of() : r.images(),
                 r.helpfulCount(),
-                analysis == null ? null : analysis.rti(),
-                analysis == null ? null : analysis.level(),
-                analysis == null ? List.of() : analysis.reasons(),
-                analysis == null ? null : analysis.textScore(),
-                analysis == null ? null : analysis.behaviorScore(),
-                analysis == null ? null : analysis.networkScore(),
-                analysis == null ? null : analysis.policyIndexV3(),
-                analysis == null ? null : analysis.evidenceLevelV3(),
-                analysis == null ? null : analysis.analysisSummaryKo(),
-                analysis == null ? List.of() : analysis.rulesReasonsKo(),
-                analysis == null ? List.of() : analysis.evidenceReasonsV3(),
-                analysis == null ? null : analysis.reasonSource(),
+                // v0.5·v3.1 칸. Data 가 v4.0 만 보내 늘 비어 있다(#273). 프론트가 키를 지울 때까지 자리만 남긴다
+                null, null, List.of(), null, null, null,
+                null, null, null, List.of(), List.of(), null,
                 analysis == null ? null : analysis.levelV4(),
                 analysis == null ? null : analysis.policyIndexV4(),
                 analysis == null ? null : analysis.textScoreV4(),

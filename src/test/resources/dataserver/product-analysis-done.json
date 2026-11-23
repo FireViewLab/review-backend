@@ -20,10 +20,11 @@
     "sampling": {"sampled": true, "method": "rating_stratified", "source_review_count": 1318,
                  "analyzed_review_count": 128},
     "results": [
-      {"review_id": "r-1", "rti": 82.5, "level": "safe", "text_score": 80.0, "behavior_score": null,
-       "network_score": 90.0, "reasons": ["TEXT_SPECIFIC_DETAIL"], "unknown_result_field": "x"},
-      {"review_id": "r-3", "rti": null, "level": null, "text_score": null, "behavior_score": null,
-       "network_score": null, "reasons": []}
+      {"review_id": "r-1", "text_probability_v4": 0.1, "text_score_v4": 80.0, "policy_index_v4": 82.5,
+       "level_v4": "SAFE", "model_version_v4": "ptext-koelectra-v4.0", "policy_version_v4": "text-first-v1",
+       "unknown_result_field": "x"},
+      {"review_id": "r-3", "text_probability_v4": null, "text_score_v4": null, "policy_index_v4": null,
+       "level_v4": null, "model_version_v4": null, "policy_version_v4": null}
     ],
     "unknown_analysis_field": {"a": 1}
   }

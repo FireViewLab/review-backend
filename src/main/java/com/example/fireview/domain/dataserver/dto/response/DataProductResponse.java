@@ -71,12 +71,9 @@ public record DataProductResponse(
      * @param sampled           표본으로 일부만 분석했으면 true, 전수 분석이면 false.
      *                          구버전 Data 서버라 모르면 null
      * @param sourceReviewCount Data 서버가 가진 원본 리뷰 수. 구버전 Data 서버라 모르면 null
-     * @param contractVersion   결과를 받은 AI 계약 {@code v0.5}/{@code v2}. {@code v2} 면 리뷰의
-     *                          {@code rti} 는 RTI 가 아니라 정책 지수(0~100)이고 {@code reasons} 는
-     *                          한국어 설명 문장이다. 구버전 Data 서버라 모르면 null
-     * @param avgPolicyIndexV3  상품 전체의 v3.1 정책 지수 평균. 카탈로그 동기화로 저장해 둔 값이라 이 페이지
-     *                          리뷰만의 평균이 아니다. v2 계약이 아니거나 아직 동기화되지 않았으면 null.
-     *                          화면의 "리뷰 신뢰도 리포트" 상품 점수가 이 이름을 읽는다
+     * @param contractVersion   결과를 받은 AI 계약 {@code v0.5}/{@code v2}/{@code v4}. 리뷰 결과는 계약과
+     *                          상관없이 {@code *V4} 필드로만 온다. 구버전 Data 서버라 모르면 null
+     * @param avgPolicyIndexV3  v3.1 정책 지수 평균. Data 서버가 v3.1 을 보내지 않아 늘 null 이다(#273)
      * @param avgPolicyIndexV4  상품 전체의 v4.0 정책 지수 평균. 없으면 null
      * @param v4LevelCounts     v4.0 등급별 리뷰 수 {@code {SAFE, WARN, DANGER}}. 없으면 null
      */
@@ -128,9 +125,11 @@ public record DataProductResponse(
      * @param reasons 판단 근거. v2 계약이면 한국어 설명 문장. 결과가 없으면 빈 배열
      *
      * <p><b>{@code *V4} 는 v4.0 텍스트 모델 결과다(#255).</b> 화면 등급·지수는 이 값을 쓴다.
-     * {@code rti}·{@code level}·{@code reasons} 는 v3.1 그대로 남아 되돌릴 때 쓴다.
-     * v4 가 아직 채워지지 않은 리뷰는 v4 필드가 전부 null 이고, v3 값으로 대신 채우지 않는다.
-     * v3.1 설명({@code reasons})은 v3.1 등급 기준이라 v4 등급과 함께 보여주지 않는다.
+     * v4 가 아직 채워지지 않은 리뷰는 v4 필드가 전부 null 이다.
+     *
+     * <p><b>{@code rti} 부터 {@code reasonSource} 까지는 늘 null(목록은 빈 배열)이다.</b> Data 서버가
+     * 분석을 v4.0 하나로 바꾸며 v0.5·v3.1 결과를 보내지 않는다(#273). 배포된 프론트가 키를 읽고 있어
+     * 자리만 남겼다. 프론트가 키를 지우면 뺀다.
      *
      * @param textScore         본문 신호 점수(0~100). 계산 불가면 null
      * @param behaviorScore     행동 신호 점수(0~100). 계산 불가면 null

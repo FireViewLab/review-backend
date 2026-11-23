@@ -34,11 +34,11 @@ class DashboardCatalogIngestionTest {
     @Autowired EntityManager em;
     @MockitoBean UserService userService;
 
-    private DataServerCatalogPage.Entry sampled(String productId, double avgRti, int scored) {
+    private DataServerCatalogPage.Entry sampled(String productId, double avgV4, int scored) {
         var p = new DataServerProduct("kurly", productId, "상품" + productId, "https://x", null, null, null,
                 1000, "https://img", null, 2000, null, null);
-        var a = new DataServerCatalogPage.Analysis("done", 1L, avgRti, scored, 500, 1318, true,
-                "m1", "p1", null, "v0.5", null, null);
+        var a = new DataServerCatalogPage.Analysis("done", 1L, scored, 500, 1318, true,
+                "m1", "p1", "v4", avgV4, new DataServerCatalogPage.LevelCounts(scored, 0, 0));
         return new DataServerCatalogPage.Entry(p, a);
     }
 

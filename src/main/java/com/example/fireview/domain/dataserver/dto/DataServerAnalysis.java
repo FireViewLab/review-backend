@@ -11,7 +11,7 @@ import java.util.stream.Collectors;
 /**
  * 상품 응답에 붙어 오는 신뢰도 분석 상태 ({@code analysis}).
  *
- * <p>Data 서버가 AI 서버를 불러 리뷰별 RTI 를 저장해 두고, 상품 조회 때 함께 내려준다.
+ * <p>Data 서버가 AI 서버를 불러 리뷰별 v4.0 결과를 저장해 두고, 상품 조회 때 함께 내려준다.
  *
  * <table>
  *   <tr><th>status</th><th>의미</th></tr>
@@ -32,8 +32,8 @@ import java.util.stream.Collectors;
  *                          job 이 없거나 이 필드를 모르는 구버전 Data 서버면 null
  * @param sourceReviewCount 표본을 고를 때 Data 서버가 가진 원본 리뷰 수. 쇼핑몰이 표시하는
  *                          전체 리뷰 수와는 다를 수 있다. job 이 없거나 구버전이면 null
- * @param contractVersion   결과를 받은 AI 계약 {@code v0.5}/{@code v2}. 결과가 없거나 구버전이면 null.
- *                          재분석 중에는 상품마다 다를 수 있다(#250)
+ * @param contractVersion   결과를 받은 AI 계약 {@code v0.5}/{@code v2}/{@code v4}. 결과가 없거나 구버전이면 null.
+ *                          계약과 상관없이 리뷰 결과에는 v4 필드만 온다(#273)
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record DataServerAnalysis(
@@ -49,11 +49,8 @@ public record DataServerAnalysis(
         List<DataServerReviewAnalysis> results
 ) {
 
-    /** v2 결과는 여기서 기존 rti·level·reasons 자리로 옮겨 둔다. 소비하는 쪽은 계약을 몰라도 된다 */
     public DataServerAnalysis {
-        results = results == null ? List.of() : results.stream()
-                .map(r -> r == null ? null : r.forContract(contractVersion))
-                .toList();
+        results = results == null ? List.of() : results;
     }
 
     /** 분석 job. 상품 조회 응답의 수집 job 과는 다른 것이다 */
@@ -71,7 +68,7 @@ public record DataServerAnalysis(
     /** 리뷰 id 로 결과를 찾을 수 있게 묶는다. 같은 id 가 두 번 오면 앞의 것을 쓴다 */
     public Map<String, DataServerReviewAnalysis> resultsByReviewId() {
         return results.stream()
-                .filter(r -> r.reviewId() != null)
+                .filter(r -> r != null && r.reviewId() != null)
                 .collect(Collectors.toMap(DataServerReviewAnalysis::reviewId, Function.identity(), (a, b) -> a));
     }
 }
