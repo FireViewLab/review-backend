@@ -23,12 +23,10 @@ class DataServerAnalysisJsonTest {
         assertThat(analysis.results()).hasSize(2);
 
         DataServerReviewAnalysis r1 = analysis.resultsByReviewId().get("r-1");
-        assertThat(r1.rti()).isEqualTo(82.5);
-        assertThat(r1.level()).isEqualTo("safe");
-        assertThat(r1.textScore()).isEqualTo(80.0);
-        assertThat(r1.behaviorScore()).isNull();
-        assertThat(r1.networkScore()).isEqualTo(90.0);
-        assertThat(r1.reasons()).containsExactly("TEXT_SPECIFIC_DETAIL");
+        assertThat(r1.policyIndexV4()).isEqualTo(82.5);
+        assertThat(r1.levelV4()).isEqualTo("SAFE");
+        assertThat(r1.textScoreV4()).isEqualTo(80.0);
+        assertThat(r1.textProbabilityV4()).isEqualTo(0.1);
     }
 
     @Test
@@ -37,24 +35,9 @@ class DataServerAnalysisJsonTest {
         DataServerReviewAnalysis r3 = DataServerFixtures.load("product-analysis-done.json")
                 .analysis().resultsByReviewId().get("r-3");
 
-        assertThat(r3.rti()).isNull();
-        assertThat(r3.level()).isNull();
-        assertThat(r3.textScore()).isNull();
-        assertThat(r3.reasons()).isEmpty();
-    }
-
-    @Test
-    void AI_원본처럼_음수가_와도_null로_바꾼다() throws JsonProcessingException {
-        DataServerReviewAnalysis r = DataServerFixtures.MAPPER.readValue("""
-                {"review_id": "r-9", "rti": -1, "level": null, "text_score": -1,
-                 "behavior_score": -1, "network_score": 55.0, "reasons": null}
-                """, DataServerReviewAnalysis.class);
-
-        assertThat(r.rti()).isNull();
-        assertThat(r.textScore()).isNull();
-        assertThat(r.behaviorScore()).isNull();
-        assertThat(r.networkScore()).isEqualTo(55.0);
-        assertThat(r.reasons()).isEmpty();
+        assertThat(r3.policyIndexV4()).isNull();
+        assertThat(r3.levelV4()).isNull();
+        assertThat(r3.textScoreV4()).isNull();
     }
 
     @Test
@@ -125,58 +108,11 @@ class DataServerAnalysisJsonTest {
     }
 
     @Test
-    void v2_결과는_정책_지수와_등급을_rti와_level_자리로_옮긴다() {
-        // #250: v3.1 결과는 rti·level·reasons 가 비어 온다. 그대로 두면 재분석된 상품이 미분석처럼 보인다
-        DataServerAnalysis analysis = DataServerFixtures.load("product-analysis-v2-done.json").analysis();
-
-        assertThat(analysis.contractVersion()).isEqualTo("v2");
-        DataServerReviewAnalysis r1 = analysis.resultsByReviewId().get("r-1");
-        assertThat(r1.rti()).isEqualTo(80.4);
-        assertThat(r1.level()).isEqualTo("safe");
-        assertThat(r1.policyIndexV3()).isEqualTo(80.4);
-        assertThat(r1.evidenceLevelV3()).isEqualTo("SAFE");
-        assertThat(r1.textScore()).isEqualTo(80.0);
-    }
-
-    @Test
-    void v2_사유는_한_문단_설명을_먼저_쓰고_없으면_상세_근거를_쓴다() {
-        var results = DataServerFixtures.load("product-analysis-v2-done.json").analysis().resultsByReviewId();
-
-        assertThat(results.get("r-1").reasons())
-                .containsExactly("구체적인 사용 경험이 담겨 있어 신뢰할 만한 리뷰입니다.");
-        assertThat(results.get("r-2").reasons())
-                .containsExactly("내용이 매우 짧습니다.", "구체적인 근거가 없습니다.");
-        assertThat(results.get("r-2").level()).isEqualTo("danger");
-    }
-
-    @Test
-    void v2_계산_불가는_null로_남는다() {
-        DataServerReviewAnalysis r3 = DataServerFixtures.load("product-analysis-v2-done.json")
-                .analysis().resultsByReviewId().get("r-3");
-
-        assertThat(r3.rti()).isNull();
-        assertThat(r3.level()).isNull();
-        assertThat(r3.reasons()).isEmpty();
-    }
-
-    @Test
-    void v0_5_결과는_v2_필드가_있어도_그대로_둔다() throws JsonProcessingException {
-        DataServerAnalysis analysis = DataServerFixtures.MAPPER.readValue("""
-                {"status": "done", "contract_version": "v0.5", "results": [
-                  {"review_id": "r-1", "rti": 60.0, "level": "warn", "reasons": ["TEXT_SHORT"],
-                   "policy_index_v3": null, "evidence_level_v3": null}]}
-                """, DataServerAnalysis.class);
-
-        DataServerReviewAnalysis r1 = analysis.resultsByReviewId().get("r-1");
-        assertThat(r1.rti()).isEqualTo(60.0);
-        assertThat(r1.level()).isEqualTo("warn");
-        assertThat(r1.reasons()).containsExactly("TEXT_SHORT");
-    }
-
-    @Test
-    void v4_필드를_읽고_v3_자리로_옮기지_않는다() {
-        // #255: 화면은 v4 를 읽는다. rti·level·reasons 는 v3.1 그대로 남아야 되돌릴 수 있다
-        var results = DataServerFixtures.load("product-analysis-v2-done.json").analysis().resultsByReviewId();
+    void v4_계약_응답의_리뷰_결과를_읽는다() {
+        // #273: Data 는 리뷰 결과에 v4 필드만 싣는다
+        DataServerAnalysis analysis = DataServerFixtures.load("product-analysis-v4-done.json").analysis();
+        assertThat(analysis.contractVersion()).isEqualTo("v4");
+        var results = analysis.resultsByReviewId();
 
         DataServerReviewAnalysis r2 = results.get("r-2");
         assertThat(r2.levelV4()).isEqualTo("WARN");
@@ -185,13 +121,11 @@ class DataServerAnalysisJsonTest {
         assertThat(r2.textProbabilityV4()).isEqualTo(0.41);
         assertThat(r2.modelVersionV4()).isEqualTo("ptext-koelectra-v4.0");
         assertThat(r2.policyVersionV4()).isEqualTo("text-first-v1");
-        assertThat(r2.rti()).isEqualTo(35.0);
-        assertThat(r2.level()).isEqualTo("danger");
     }
 
     @Test
-    void v4가_아직_없으면_v3로_채우지_않는다() {
-        DataServerReviewAnalysis r3 = DataServerFixtures.load("product-analysis-v2-done.json")
+    void v4_결과가_없는_리뷰는_null로_둔다() {
+        DataServerReviewAnalysis r3 = DataServerFixtures.load("product-analysis-v4-done.json")
                 .analysis().resultsByReviewId().get("r-3");
 
         assertThat(r3.levelV4()).isNull();
@@ -235,10 +169,19 @@ class DataServerAnalysisJsonTest {
     }
 
     @Test
-    void 계약을_모르는_구버전_응답은_v0_5로_읽는다() {
+    void 계약을_모르는_응답도_v4_필드를_읽는다() {
         DataServerAnalysis analysis = DataServerFixtures.load("product-analysis-done.json").analysis();
 
         assertThat(analysis.contractVersion()).isNull();
-        assertThat(analysis.resultsByReviewId().get("r-1").rti()).isEqualTo(82.5);
+        assertThat(analysis.resultsByReviewId().get("r-1").policyIndexV4()).isEqualTo(82.5);
+    }
+
+    @Test
+    void null_결과가_섞여도_리뷰_id로_묶는다() throws JsonProcessingException {
+        DataServerAnalysis analysis = DataServerFixtures.MAPPER.readValue("""
+                {"status": "done", "results": [null, {"review_id": "r-1", "policy_index_v4": 70.0}]}
+                """, DataServerAnalysis.class);
+
+        assertThat(analysis.resultsByReviewId()).containsOnlyKeys("r-1");
     }
 }

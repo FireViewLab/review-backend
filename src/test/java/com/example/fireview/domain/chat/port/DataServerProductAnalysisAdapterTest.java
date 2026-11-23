@@ -162,7 +162,7 @@ class DataServerProductAnalysisAdapterTest {
     }
 
     @Test
-    void 대표_리뷰에_리뷰별_RTI와_등급을_붙인다() {
+    void 대표_리뷰에_리뷰별_v4_지수와_등급을_붙인다() {
         when(dataServerClient.findProduct(any()))
                 .thenReturn(Optional.of(DataServerFixtures.load("product-analysis-done.json")));
 
@@ -208,17 +208,17 @@ class DataServerProductAnalysisAdapterTest {
                    {"review_id": "d", "content": "이상한 값"}
                  ]},
                  "analysis": {"status": "done", "review_count": 4, "results": [
-                   {"review_id": "a", "rti": 75.0, "level": "safe", "reasons": []},
-                   {"review_id": "b", "rti": 55.0, "level": "warn", "reasons": []},
-                   {"review_id": "c", "rti": 20.0, "level": "danger", "reasons": []},
-                   {"review_id": "d", "rti": 60.0, "level": "unknown", "reasons": []}
+                   {"review_id": "a", "policy_index_v4": 75.0, "level_v4": "SAFE"},
+                   {"review_id": "b", "policy_index_v4": 55.0, "level_v4": "WARN"},
+                   {"review_id": "c", "policy_index_v4": 20.0, "level_v4": "DANGER"},
+                   {"review_id": "d", "policy_index_v4": 60.0, "level_v4": "UNKNOWN"}
                  ]}}
                 """, DataServerProductResponse.class);
         when(dataServerClient.findProduct(any())).thenReturn(Optional.of(body));
 
         ProductAnalysisContext ctx = adapter.findContext("kurly-1").orElseThrow();
 
-        // 최저 RTI(c, 20) 가 맨 앞, 나머지는 받은 순서
+        // 최저 지수(c, 20) 가 맨 앞, 나머지는 받은 순서
         assertThat(ctx.sampleReviews()).extracting(ProductAnalysisContext.SampleReview::grade)
                 .containsExactly("위험", "안전", "주의", null);
     }
@@ -335,16 +335,16 @@ class DataServerProductAnalysisAdapterTest {
                 "2026-10-01T10:00:00+09:00", null, List.of(), 0);
     }
 
-    private static DataServerReviewAnalysis scored(String id, double rti, String... reasons) {
-        return DataServerReviewAnalysis.v05(id, rti, rti >= 70 ? "safe" : rti >= 40 ? "warn" : "danger",
-                rti, null, null, List.of(reasons));
+    private static DataServerReviewAnalysis scored(String id, double index) {
+        return new DataServerReviewAnalysis(id, index >= 70 ? "SAFE" : index >= 40 ? "WARN" : "DANGER",
+                index, index, null, "ptext-koelectra-v4.0", "text-first-v1");
     }
 
     private static DataServerProductResponse pageOf(List<DataServerReview> reviews, String next,
                                                     String status, List<DataServerReviewAnalysis> results) {
         return new DataServerProductResponse("fresh", product(null),
                 new DataServerProductResponse.Reviews(reviews, next), null,
-                new DataServerAnalysis(status, null, "hash", "model", "rti-v0.1", 208, false, 208, "v0.5", results));
+                new DataServerAnalysis(status, null, "hash", "model", "text-first-v1", 208, false, 208, "v4", results));
     }
 
     @Test
@@ -407,30 +407,16 @@ class DataServerProductAnalysisAdapterTest {
     }
 
     @Test
-    void 판단_근거는_화면_라벨로_싣고_모르는_코드는_뺀다() {
+    void v4_결과에는_판단_근거가_없어_비워_둔다() {
+        // #273: v4.0 은 근거 코드를 주지 않는다. 옛 라벨을 지어내지 않는다
         when(dataServerClient.findProduct(any())).thenReturn(Optional.of(pageOf(
-                List.of(review("a", "좋아요 좋아요!!")), null, "done",
-                List.of(scored("a", 90, "TEXT_REPETITIVE_KEYWORD", "SOMETHING_NEW", "EXCESSIVE_EXCLAMATION")))));
-
-        assertThat(adapter.findContext(EXTERNAL_ID).orElseThrow().sampleReviews().get(0).reasons())
-                .containsExactly("반복 표현", "잦은 느낌표");
-    }
-
-    @Test
-    void v2_결과도_점수와_등급을_싣는다() {
-        // #250: v2 결과는 rti·level 이 비어 온다. 옮기지 않으면 챗봇이 모든 리뷰를 미분석으로 본다
-        DataServerReviewAnalysis v2 = new DataServerReviewAnalysis("a", null, null, 80.0, null, null, List.of(),
-                35.0, "DANGER", null, List.of("내용이 매우 짧습니다."), List.of("TEXT_SHORT"), "rules",
-                null, null, null, null, null, null);
-        when(dataServerClient.findProduct(any())).thenReturn(Optional.of(new DataServerProductResponse("fresh",
-                product(null), new DataServerProductResponse.Reviews(List.of(review("a", "별로")), null), null,
-                new DataServerAnalysis("done", null, "hash", "v3.1", "policy-v3", 208, false, 208, "v2",
-                        List.of(v2)))));
+                List.of(review("a", "좋아요 좋아요!!")), null, "done", List.of(scored("a", 35)))));
 
         ProductAnalysisContext.SampleReview sample = adapter.findContext(EXTERNAL_ID).orElseThrow()
                 .sampleReviews().get(0);
 
         assertThat(sample.rti()).isEqualTo(35.0);
         assertThat(sample.grade()).isEqualTo("위험");
+        assertThat(sample.reasons()).isEmpty();
     }
 }
