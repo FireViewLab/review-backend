@@ -206,4 +206,24 @@ class CartScheduleServiceTest {
 
         assertThat(service.createActive(owner, product, WEEKLY_MON.rule(), 1)).isEmpty();
     }
+    @Test
+    void 같은_상품에_진행_중_예약이_있으면_남은_제안을_확정하지_않는다() {
+        // 챗봇 제안을 두고 메인 버튼으로 바로 예약한 뒤 제안까지 확인하면 같은 상품이 두 번씩 담긴다(#271 리뷰)
+        ScheduleProposal pending = propose();
+        service.createActive(owner, product, WEEKLY_MON.rule(), 1).orElseThrow();
+
+        assertThatThrownBy(() -> service.confirm("o@test.com", pending.scheduleId()))
+                .extracting("errorCode").isEqualTo(ErrorCode.CART_SCHEDULE_NOT_CONFIRMABLE);
+        assertThat(schedules.countByUser_IdAndStatus(owner.getId(), CartSchedule.ACTIVE)).isEqualTo(1);
+    }
+
+    @Test
+    void 같은_상품의_제안_두_개를_모두_확정할_수_없다() {
+        ScheduleProposal first = propose();
+        ScheduleProposal second = propose();
+        service.confirm("o@test.com", first.scheduleId());
+
+        assertThatThrownBy(() -> service.confirm("o@test.com", second.scheduleId()))
+                .extracting("errorCode").isEqualTo(ErrorCode.CART_SCHEDULE_NOT_CONFIRMABLE);
+    }
 }
