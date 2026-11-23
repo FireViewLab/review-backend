@@ -43,6 +43,8 @@ BEGIN
     -- 직접 FK 및 사용자 ElementCollection
     DELETE FROM wishlists WHERE user_id = seed_user_id;
     DELETE FROM cart_items WHERE user_id = seed_user_id;
+    DELETE FROM cart_events WHERE user_id = seed_user_id;
+    DELETE FROM cart_schedules WHERE user_id = seed_user_id;
     DELETE FROM notifications WHERE receiver_id = seed_user_id;
     DELETE FROM user_settings WHERE user_id = seed_user_id;
     DELETE FROM reports WHERE reporter_id = seed_user_id;
