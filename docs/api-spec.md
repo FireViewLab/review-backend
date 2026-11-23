@@ -276,7 +276,7 @@ https://re-view.kr/oauth2/callback?error=server_error
 - 챗봇 `productId` 에 `externalId` 를 그대로 넣는다
 - `avgRti` · `rtiGrade` 가 **null** 이다 (상품 평균 RTI 는 아직 없다). **0 이나 기본값으로 그리지 말 것**
 - `analysisStatus` 는 v2 상세를 열 때 서버가 Data 서버에서 **마지막으로 본 분석 상태**다 (`DONE`·`QUEUED` 등, 상세의 `analysisStatus` 와 같은 enum). **null 이면 아직 본 적 없음(모름)** 이다. 누군가 상세를 열어야 갱신되므로 늦을 수 있다. `UNAVAILABLE` 은 적지 않아(일시 장애가 마지막 값을 지우지 않게) 목록에는 오지 않는다. `DONE` 이어도 `avgRti` 는 null 이다. 대시보드 상품도 같다
-- `avgRating` 은 평점을 모르면 **null** 이다 (Data 서버가 평점을 주지 않는 몰, 예: 컬리). 예전에는 `0.0` 이었다. `reviewCount` 는 실제 0 과 모름을 가를 근거가 없어 그대로 둔다
+- `avgRating` 은 평점을 모르면 **null** 이다 (Data 서버가 평점을 주지 않는 몰, 예: 컬리). 예전에는 `0.0` 이었다. `reviewCount` 는 쇼핑몰 리뷰 수를 모르면(0 이하) Data 에 수집된 리뷰 수(`analysisSourceReviewCount`)로 채운다(#276). 쇼핑몰 표시 수보다 작을 수 있다. 수집된 리뷰도 없으면 실제 0 과 모름을 가를 근거가 없어 그대로 둔다
 - `category` · `categoryDisplayName` 은 쇼핑몰 카테고리와 상품명으로 서버가 분류한 값이다 (예: `BEAUTY_SKINCARE` / `"스킨케어"`). 근거가 없으면 **null** 이다 (약 1할)
 - 쇼핑몰 원문 카테고리는 `subCategory` 에 그대로 온다 (`"뷰티 > 스킨케어 > 마스크팩"`). 컬리·무신사·11번가는 상세를 한 번 연 뒤에야 채워진다
 - `platforms[0].url` 이 쇼핑몰 상품 페이지다
@@ -450,6 +450,7 @@ Data 서버가 `(platform, productId)` 로 상품을 가리키므로 프론트�
 - 리뷰는 **cursor 페이지네이션**이다. `reviews.nextCursor` 를 다음 요청의 `?cursor=` 에 그대로 넣는다. null 이면 마지막 페이지다.
 - **리뷰마다 신호 점수 `textScore`·`behaviorScore`·`networkScore`(0~100)가 실린다.** 계산 불가면 null이다. 리뷰 상세 화면의 세부 점수가 이 값을 쓴다.
 - **분석은 v4.0 하나다(#273).** Data 서버가 v0.5·v3.1 결과를 보내지 않는다. 리뷰의 `rti`·`level`·`textScore`·`behaviorScore`·`networkScore`·`policyIndexV3`·`evidenceLevelV3`·`analysisSummaryKo`·`reasonSource` 는 **늘 null**, `reasons`·`rulesReasonsKo`·`evidenceReasonsV3` 는 **늘 빈 배열**이다. 배포된 화면이 키를 읽고 있어 자리만 남겼고, 화면이 키를 지우면 뺀다. `analysis.contractVersion` 은 `v4` 로 온다.
+- **`analysis.modelVersionV4`·`policyVersionV4` 는 v4.0 모델·규칙 버전이다(#276).** 이 페이지 리뷰 결과에서 읽는다. `modelVersion`·`policyVersion` 은 분석 job 버전이라 v4 로 다시 채운 상품은 v3.1 값이 남는다. v4 결과가 있는 리뷰가 페이지에 없으면 null.
 - **`analysis`에는 상품 전체 평균이 실린다:** `avgPolicyIndexV4`, `v4LevelCounts`. 카탈로그 동기화로 저장한 값이라 이 페이지 리뷰만의 평균이 아니다. 동기화되지 않은 상품은 null. `avgPolicyIndexV3` 는 늘 null 이다.
 - **v4.0 결과는 `*V4` 필드로 온다(#255).** 화면 등급·지수는 v4 를 쓴다.
 
