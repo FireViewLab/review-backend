@@ -97,8 +97,10 @@ public record DataProductResponse(
     ) {}
 
     /**
-     * @param externalId {@code "{platform}-{productId}"}. 챗봇·알림처럼 식별자를 한 칸에
-     *                   담아야 하는 자리에서 쓴다
+     * @param externalId   {@code "{platform}-{productId}"}. 챗봇·알림처럼 식별자를 한 칸에
+     *                     담아야 하는 자리에서 쓴다
+     * @param description  상품 상세 설명(plain text). 컬리·무신사만 채워진다. 없으면 null(#249)
+     * @param detailImages 상세 설명 이미지 URL. 없으면 빈 배열
      */
     public record DataProductDetail(
             String platform,
@@ -114,7 +116,9 @@ public record DataProductResponse(
             String category,
             Integer reviewCount,
             Double rating,
-            String lastCollectedAt
+            String lastCollectedAt,
+            String description,
+            List<String> detailImages
     ) {}
 
     /**

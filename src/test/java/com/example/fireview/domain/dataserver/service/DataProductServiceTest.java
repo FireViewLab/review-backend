@@ -1,5 +1,8 @@
 package com.example.fireview.domain.dataserver.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.example.fireview.domain.dataserver.DataServerFixtures;
 import com.example.fireview.domain.dataserver.dto.DataServerJob;
 import com.example.fireview.domain.dataserver.dto.DataServerProduct;
 import com.example.fireview.domain.dataserver.dto.DataServerProductResponse;
@@ -74,6 +77,34 @@ class DataProductServiceTest {
         assertThat(res.reviews().items().get(0).rti()).isNull();
         assertThat(res.reviews().items().get(0).level()).isNull();
         assertThat(res.reviews().items().get(0).reasons()).isEmpty();
+    }
+
+    @Test
+    void 상세_설명과_설명_이미지를_내려준다() throws Exception {
+        // #249: Data 상품 응답의 description_text·description_images 를 product 에 싣는다
+        DataServerProduct p = DataServerFixtures.MAPPER.readValue("""
+                {"platform": "kurly", "product_id": "1000146248", "name": "샘플 상품",
+                 "description_text": "  국내산 원물로 만든 간편식입니다.\\n",
+                 "description_images": ["https://img/d1.jpg", "", null, "https://img/d2.jpg"]}
+                """, DataServerProduct.class);
+        when(dataServerClient.findProduct(any(), any())).thenReturn(Optional.of(body("fresh", p, List.of(), null)));
+
+        DataProductResponse res = call();
+
+        assertThat(res.product().description()).isEqualTo("국내산 원물로 만든 간편식입니다.");
+        assertThat(res.product().detailImages()).containsExactly("https://img/d1.jpg", "https://img/d2.jpg");
+    }
+
+    @Test
+    void 상세_설명이_없으면_null과_빈_배열이다() throws Exception {
+        // 올리브영·11번가 수집기는 아직 설명을 채우지 않는다
+        when(dataServerClient.findProduct(any(), any())).thenReturn(Optional.of(body("fresh", product(), List.of(), null)));
+
+        JsonNode product = new ObjectMapper().valueToTree(call()).get("product");
+
+        assertThat(product.get("description").isNull()).isTrue();
+        assertThat(product.get("detailImages").isArray()).isTrue();
+        assertThat(product.get("detailImages")).isEmpty();
     }
 
     @Test

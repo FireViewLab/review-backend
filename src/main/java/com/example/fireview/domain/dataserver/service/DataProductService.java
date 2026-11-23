@@ -123,7 +123,9 @@ public class DataProductService {
                 p.price(), p.thumbnailUrl(), p.category(),
                 p.reviewCount() != null ? p.reviewCount() : cachedReviewCount(cached),
                 p.rating() != null ? p.rating() : cachedRating(cached),
-                p.lastCollectedAt());
+                p.lastCollectedAt(),
+                p.descriptionText() == null || p.descriptionText().isBlank() ? null : p.descriptionText().strip(),
+                p.descriptionImages());
     }
 
     // 번호표를 만들 때 리뷰 수·평점이 비어 있으면 0 으로 채워진다(Product.onCreate).
