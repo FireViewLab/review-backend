@@ -76,6 +76,10 @@ public record DataProductResponse(
      * @param avgPolicyIndexV3  v3.1 정책 지수 평균. Data 서버가 v3.1 을 보내지 않아 늘 null 이다(#273)
      * @param avgPolicyIndexV4  상품 전체의 v4.0 정책 지수 평균. 없으면 null
      * @param v4LevelCounts     v4.0 등급별 리뷰 수 {@code {SAFE, WARN, DANGER}}. 없으면 null
+     * @param modelVersionV4    v4.0 모델 버전 (예: {@code ptext-koelectra-v4.0}). 이 페이지 리뷰 결과에서 읽는다.
+     *                          {@code modelVersion} 은 분석 job 의 버전이라 v4 로 다시 채운 상품은 v3.1 값이 남는다(#276).
+     *                          v4 결과가 있는 리뷰가 페이지에 없으면 null
+     * @param policyVersionV4   v4.0 규칙 버전 (예: {@code text-first-v1}). 읽는 곳과 null 조건은 위와 같다
      */
     public record ProductAnalysis(
             AnalysisStatus status,
@@ -87,7 +91,9 @@ public record DataProductResponse(
             String contractVersion,
             Double avgPolicyIndexV3,
             Double avgPolicyIndexV4,
-            ReviewLevelCounts v4LevelCounts
+            ReviewLevelCounts v4LevelCounts,
+            String modelVersionV4,
+            String policyVersionV4
     ) {}
 
     /**

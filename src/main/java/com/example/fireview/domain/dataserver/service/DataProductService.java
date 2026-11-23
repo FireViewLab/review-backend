@@ -21,7 +21,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Function;
 
 /**
  * Data 서버의 상품·리뷰를 화면용으로 조합한다.
@@ -161,7 +163,20 @@ public class DataProductService {
                 null,
                 cached == null ? null : cached.getAvgPolicyIndexV4(),
                 cached == null ? null : ReviewLevelCounts.of(
-                        cached.getV4SafeCount(), cached.getV4WarnCount(), cached.getV4DangerCount()));
+                        cached.getV4SafeCount(), cached.getV4WarnCount(), cached.getV4DangerCount()),
+                firstPresent(analysis.results(), DataServerReviewAnalysis::modelVersionV4),
+                firstPresent(analysis.results(), DataServerReviewAnalysis::policyVersionV4));
+    }
+
+    /** 리뷰 결과 중 처음으로 값이 있는 버전. 한 분석의 리뷰는 같은 버전으로 채워진다 */
+    private static String firstPresent(List<DataServerReviewAnalysis> results,
+                                       Function<DataServerReviewAnalysis, String> version) {
+        return results.stream()
+                .filter(Objects::nonNull)
+                .map(version)
+                .filter(v -> v != null && !v.isBlank())
+                .findFirst()
+                .orElse(null);
     }
 
     private DataProductResponse.ReviewPage toReviewPage(DataServerProductResponse body) {
