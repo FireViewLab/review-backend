@@ -594,7 +594,11 @@ class ChatServiceTest {
 
     @Test
     void 반복_담기_이력을_프롬프트에_싣는다() {
-        when(repurchaseFinder.findAll(1L, ChatService.REPURCHASE_PROMPT_LIMIT)).thenReturn(List.of(WATER));
+        when(repurchaseFinder.findAll(1L, ChatService.REPURCHASE_PROMPT_LIMIT)).thenAnswer(inv -> {
+            // 이력 조회가 실패해도 대화 트랜잭션을 rollback-only 로 만들지 않게 트랜잭션 밖에서 찾는다
+            assertThat(inConversationTransaction).isFalse();
+            return List.of(WATER);
+        });
         givenLlmReturns("ONTOPIC: yes\nRECOMMEND: no\nSCHEDULE: none\n---\n생수를 다시 담을 때예요.", 1900, 60);
 
         service.ask(EMAIL, ChatTier.STANDARD, null, null, "다시 살 거 있어?");
