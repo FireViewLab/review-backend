@@ -18,14 +18,20 @@ import java.util.regex.Pattern;
  * once 2026-12-01 09:00 qty=1
  * weekly MON 09:00 qty=1
  * monthly 1 09:00 qty=1
+ * weekly SUN 09:00 qty=1 product=kurly-1000146248
  * </pre>
  *
  * <p>형식이 조금이라도 어긋나면 예약하지 않는다(fail-closed). 잘못 읽어 원하지 않는 상품이
  * 장바구니에 담기는 것보다 제안을 만들지 않는 편이 낫다. 시각과 수량은 빠지면 09:00, 1개로 본다.
  *
- * @param quantity 담을 수량 1~10
+ * @param quantity   담을 수량 1~10
+ * @param productRef 예약할 상품 주소. 대화 중인 상품이 아니라 반복 담기 이력의 상품을 고를 때 끝에 붙는다. 없으면 null
  */
-public record ScheduleRequest(ScheduleRule rule, int quantity) {
+public record ScheduleRequest(ScheduleRule rule, int quantity, String productRef) {
+
+    public ScheduleRequest(ScheduleRule rule, int quantity) {
+        this(rule, quantity, null);
+    }
 
     public static final int MAX_QUANTITY = 10;
     public static final LocalTime DEFAULT_TIME = LocalTime.of(9, 0);
@@ -34,6 +40,8 @@ public record ScheduleRequest(ScheduleRule rule, int quantity) {
     private static final Pattern ONCE = Pattern.compile("once\\s+(\\d{4})-(\\d{2})-(\\d{2})" + TAIL);
     private static final Pattern WEEKLY = Pattern.compile("weekly\\s+([a-z]{3})" + TAIL);
     private static final Pattern MONTHLY = Pattern.compile("monthly\\s+(\\d{1,2})" + TAIL);
+    /** 끝의 {@code product=} 값. 상품 주소는 대소문자를 구분하므로 소문자로 바꾸기 전에 떼어 낸다 */
+    private static final Pattern PRODUCT = Pattern.compile("(?i)^(.*?)\\s+product=([a-z0-9_-]+)$");
 
     private static final Map<String, DayOfWeek> DAYS = Map.of(
             "mon", DayOfWeek.MONDAY, "tue", DayOfWeek.TUESDAY, "wed", DayOfWeek.WEDNESDAY,
@@ -46,7 +54,20 @@ public record ScheduleRequest(ScheduleRule rule, int quantity) {
      */
     public static Optional<ScheduleRequest> parse(String value, LocalDateTime now) {
         if (value == null) return Optional.empty();
-        String text = value.strip().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
+        String text = value.strip().replaceAll("\\s+", " ");
+        String productRef = null;
+        if (text.toLowerCase(Locale.ROOT).contains("product=")) {
+            Matcher p = PRODUCT.matcher(text);
+            if (!p.matches()) return Optional.empty();
+            text = p.group(1);
+            productRef = p.group(2);
+        }
+        String ref = productRef;
+        return parseRule(text.toLowerCase(Locale.ROOT), now)
+                .map(r -> new ScheduleRequest(r.rule(), r.quantity(), ref));
+    }
+
+    private static Optional<ScheduleRequest> parseRule(String text, LocalDateTime now) {
         try {
             Matcher m;
             if ((m = ONCE.matcher(text)).matches()) {
