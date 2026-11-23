@@ -59,6 +59,7 @@ class ChatServiceTest {
     @Mock UserService userService;
     @Mock ChatRecommendationService recommendationService;
     @Mock com.example.fireview.domain.cartschedule.service.CartScheduleService cartScheduleService;
+    @Mock com.example.fireview.domain.repurchase.RepurchaseFinder repurchaseFinder;
 
     /** 2026-11-22 일요일 오후 3시(한국) */
     private static final java.time.Clock CLOCK = java.time.Clock.fixed(
@@ -107,7 +108,7 @@ class ChatServiceTest {
 
         service = new ChatService(sessionRepository, messageRepository, productAnalysisPort,
                 assembler, guard, llmClient, userService, planPolicy, quotaStore,
-                recommendationService, transactionOperations, cartScheduleService, CLOCK);
+                recommendationService, transactionOperations, cartScheduleService, repurchaseFinder, CLOCK);
 
         user = User.builder().id(1L).email(EMAIL).nickname("tester").build();
         when(userService.findByEmail(EMAIL)).thenReturn(user);
@@ -582,5 +583,70 @@ class ChatServiceTest {
         assertThat(result.blocked()).isFalse();
         assertThat(result.answer()).isEqualTo("아래 버튼을 눌러 주세요.");
         assertThat(result.scheduleProposal()).isNull();
+    }
+    private static final com.example.fireview.domain.repurchase.RepurchaseCandidate WATER =
+            new com.example.fireview.domain.repurchase.RepurchaseCandidate(5L, "kurly-3001", "생수 2L 6병",
+                    "https://img", 3000L, new com.example.fireview.domain.repurchase.RepurchaseStats(
+                            7, java.time.LocalDate.of(2026, 11, 14), 8, 4, true, 1.14,
+                            com.example.fireview.domain.cartschedule.ScheduleRule.weekly(
+                                    java.time.DayOfWeek.SATURDAY, java.time.LocalTime.of(9, 0)),
+                            "약 7일마다 담으셨고 마지막은 8일 전이에요"));
+
+    @Test
+    void 반복_담기_이력을_프롬프트에_싣는다() {
+        when(repurchaseFinder.findAll(1L, ChatService.REPURCHASE_PROMPT_LIMIT)).thenReturn(List.of(WATER));
+        givenLlmReturns("ONTOPIC: yes\nRECOMMEND: no\nSCHEDULE: none\n---\n생수를 다시 담을 때예요.", 1900, 60);
+
+        service.ask(EMAIL, ChatTier.STANDARD, null, null, "다시 살 거 있어?");
+
+        org.mockito.ArgumentCaptor<String> message = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(llmClient).complete(anyString(), any(), message.capture(), any());
+        assertThat(message.getValue()).contains("<담기_이력>", "kurly-3001", "생수 2L 6병");
+    }
+
+    @Test
+    void 이력을_못_불러와도_답변은_나간다() {
+        when(repurchaseFinder.findAll(any(), org.mockito.ArgumentMatchers.anyInt()))
+                .thenThrow(new IllegalStateException("db down"));
+        givenLlmReturns("ONTOPIC: yes\nRECOMMEND: no\nSCHEDULE: none\n---\n아직 반복해서 담은 상품이 없어요.", 900, 40);
+
+        ChatService.ChatResult result = service.ask(EMAIL, ChatTier.STANDARD, null, null, "다시 살 거 있어?");
+
+        assertThat(result.blocked()).isFalse();
+        assertThat(result.answer()).isEqualTo("아직 반복해서 담은 상품이 없어요.");
+    }
+
+    @Test
+    void 상품_없는_대화에서도_이력_상품이면_예약을_제안한다() {
+        when(repurchaseFinder.findAll(1L, ChatService.REPURCHASE_PROMPT_LIMIT)).thenReturn(List.of(WATER));
+        givenLlmReturns("ONTOPIC: yes\nRECOMMEND: no\nSCHEDULE: weekly SAT 09:00 qty=1 product=kurly-3001\n---\n아래 버튼을 눌러 주세요.", 1900, 60);
+        when(cartScheduleService.propose(any(), anyString(), any(), any())).thenReturn(Optional.of(proposal));
+
+        ChatService.ChatResult result = service.ask(EMAIL, ChatTier.STANDARD, null, null, "생수 매주 예약해줘");
+
+        assertThat(result.scheduleProposal()).isEqualTo(proposal);
+        verify(cartScheduleService).propose(any(), org.mockito.ArgumentMatchers.eq("kurly-3001"),
+                org.mockito.ArgumentMatchers.eq("생수 2L 6병"), any());
+    }
+
+    @Test
+    void 이력에도_대화에도_없는_상품은_예약하지_않는다() {
+        when(repurchaseFinder.findAll(1L, ChatService.REPURCHASE_PROMPT_LIMIT)).thenReturn(List.of(WATER));
+        givenLlmReturns("ONTOPIC: yes\nRECOMMEND: no\nSCHEDULE: weekly SAT 09:00 qty=1 product=kurly-9999\n---\n아래 버튼을 눌러 주세요.", 1900, 60);
+
+        ChatService.ChatResult result = service.ask(EMAIL, ChatTier.STANDARD, null, PRODUCT_ID, "매주 담아줘");
+
+        assertThat(result.scheduleProposal()).isNull();
+        verify(cartScheduleService, never()).propose(any(), any(), any(), any());
+    }
+
+    @Test
+    void 상품_없는_대화에서_product_값이_없으면_예약하지_않는다() {
+        givenLlmReturns("ONTOPIC: yes\nRECOMMEND: no\nSCHEDULE: weekly SAT 09:00 qty=1\n---\n어떤 상품을 담을까요?", 900, 40);
+
+        ChatService.ChatResult result = service.ask(EMAIL, ChatTier.STANDARD, null, null, "매주 담아줘");
+
+        assertThat(result.scheduleProposal()).isNull();
+        verify(cartScheduleService, never()).propose(any(), any(), any(), any());
     }
 }
