@@ -846,7 +846,7 @@ LLM 을 부르지 않으므로 빠르고, 쿼터를 깎지 않는다. 채팅 화
 
 | Method | Path | 설명 |
 |--------|------|------|
-| POST | `/api/cart-schedules/{id}/confirm` | 제안 확정. 24시간이 지났거나 이미 확정·취소했거나 진행 중 예약이 20개면 `409 CART_SCHEDULE_NOT_CONFIRMABLE` |
+| POST | `/api/cart-schedules/{id}/confirm` | 제안 확정. 24시간이 지났거나 이미 확정·취소했거나 진행 중 예약이 20개이거나 같은 상품에 진행 중 예약이 있으면 `409 CART_SCHEDULE_NOT_CONFIRMABLE` |
 | GET | `/api/cart-schedules` | 진행 중인 예약. 다음에 담을 시각이 이른 순 |
 | DELETE | `/api/cart-schedules/{id}` | 예약 취소. 이미 끝났거나 취소한 예약이면 그대로 200 |
 
