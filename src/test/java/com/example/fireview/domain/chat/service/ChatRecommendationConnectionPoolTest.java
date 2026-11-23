@@ -70,6 +70,7 @@ class ChatRecommendationConnectionPoolTest {
 
     @MockitoBean LlmClient llmClient;
     @MockitoBean com.example.fireview.domain.cartschedule.service.CartScheduleService cartScheduleService;
+    @MockitoBean com.example.fireview.domain.repurchase.RepurchaseFinder repurchaseFinder;
     @MockitoBean ProductAnalysisPort productAnalysisPort;
     @MockitoBean UserService userService;
 

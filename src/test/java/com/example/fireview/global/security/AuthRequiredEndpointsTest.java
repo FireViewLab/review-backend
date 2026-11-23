@@ -61,7 +61,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 인증이 필요한 경로(번호표 발급 · 찜 · 장바구니 · 장바구니 예약 · 신고 · 챗봇)를 실제 필터 체인으로 검증한다.
+ * 인증이 필요한 경로(번호표 발급 · 찜 · 장바구니 · 장바구니 예약 · 반복 담기 추천 · 신고 · 챗봇)를 실제 필터 체인으로 검증한다.
  *
  * <p>Swagger 로 손으로 확인하던 구간을 자동화한 것이다. 토큰은 운영과 같은
  * {@link JwtTokenProvider} 로 발급해 {@code SecurityConfig} 의 JwtDecoder 를 그대로 통과시킨다.
@@ -90,6 +90,7 @@ class AuthRequiredEndpointsTest {
     @MockitoBean WishlistService wishlistService;
     @MockitoBean CartService cartService;
     @MockitoBean com.example.fireview.domain.cartschedule.service.CartScheduleService cartScheduleService;
+    @MockitoBean com.example.fireview.domain.repurchase.RepurchaseService repurchaseService;
     @MockitoBean ReportService reportService;
     @MockitoBean ChatService chatService;
 
@@ -134,6 +135,8 @@ class AuthRequiredEndpointsTest {
                 endpoint("장바구니 예약 확정", () -> post("/api/cart-schedules/1/confirm")),
                 endpoint("장바구니 예약 목록", () -> get("/api/cart-schedules")),
                 endpoint("장바구니 예약 취소", () -> delete("/api/cart-schedules/1")),
+                endpoint("다시 살 때 된 상품", () -> get("/api/repurchase")),
+                endpoint("반복 담기 정기 예약 걸기", () -> post("/api/repurchase/1/schedule")),
 
                 endpoint("리뷰 신고", () -> post("/api/reports/reviews/1")
                         .contentType(MediaType.APPLICATION_JSON).content(REPORT_BODY)),

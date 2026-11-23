@@ -15,6 +15,10 @@ public interface CartScheduleRepository extends JpaRepository<CartSchedule, Long
 
     long countByUser_IdAndStatus(Long userId, String status);
 
+    /** 진행 중인 예약이 걸린 상품 번호. 반복 담기 추천에서 이미 자동으로 담기는 상품을 뺄 때 쓴다 */
+    @Query("SELECT DISTINCT s.product.id FROM CartSchedule s WHERE s.user.id = :userId AND s.status = 'ACTIVE'")
+    List<Long> findActiveProductIds(@Param("userId") Long userId);
+
     /** 회원 탈퇴 때 지운다. 끝났거나 취소한 예약도 행이 남아 탈퇴를 막는다 */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("DELETE FROM CartSchedule s WHERE s.user.id = :userId")

@@ -3,6 +3,8 @@ package com.example.fireview.domain.chat.service;
 import com.example.fireview.domain.cartschedule.ScheduleRequest;
 import com.example.fireview.domain.cartschedule.dto.ScheduleProposal;
 import com.example.fireview.domain.cartschedule.service.CartScheduleService;
+import com.example.fireview.domain.repurchase.RepurchaseCandidate;
+import com.example.fireview.domain.repurchase.RepurchaseFinder;
 import com.example.fireview.domain.chat.client.LlmClient;
 import com.example.fireview.domain.chat.entity.ChatMessage;
 import com.example.fireview.domain.chat.entity.ChatRole;
@@ -65,7 +67,11 @@ public class ChatService {
     private final ChatRecommendationService recommendationService;
     private final TransactionOperations transactionOperations;
     private final CartScheduleService cartScheduleService;
+    private final RepurchaseFinder repurchaseFinder;
     private final Clock clock;
+
+    /** 프롬프트에 싣는 반복 담기 후보 수. 후보가 있는 사용자만 턴당 약 150토큰이 는다 */
+    static final int REPURCHASE_PROMPT_LIMIT = 5;
 
     /**
      * @param tier      호출된 엔드포인트의 등급. 요금제가 이 등급을 쓸 수 없으면 403
@@ -74,23 +80,26 @@ public class ChatService {
      */
     public ChatResult ask(String userEmail, ChatTier tier,
                           Long sessionId, String productId, String question) {
+        // 반복 담기 이력은 대화 트랜잭션 밖에서 미리 찾는다. 안에서 찾다 쿼리가 실패하면 예외를 잡아도
+        // 대화 트랜잭션이 rollback-only 가 되어 답변을 저장하지 못한다(#271 리뷰)
+        List<RepurchaseCandidate> repurchases = findRepurchases(userEmail);
         Turn turn = transactionOperations.execute(
-                status -> converse(userEmail, tier, sessionId, productId, question));
+                status -> converse(userEmail, tier, sessionId, productId, question, repurchases));
 
         // ── 추천·예약 제안: 대화 트랜잭션이 커밋되고 커넥션을 돌려준 뒤에 처리한다 ──
         ChatResult result = turn.result();
         if (turn.wantsRecommendations()) {
             result = result.withRecommendations(findRecommendations(turn.productId()));
         }
-        if (turn.scheduleValue() != null && turn.productId() != null) {
+        if (turn.scheduleValue() != null) {
             result = result.withScheduleProposal(proposeSchedule(turn).orElse(null));
         }
         return result;
     }
 
     /** 대화 한 턴을 처리하고 저장한다. 호출자가 연 트랜잭션 안에서 돈다 */
-    private Turn converse(String userEmail, ChatTier tier,
-                          Long sessionId, String productId, String question) {
+    private Turn converse(String userEmail, ChatTier tier, Long sessionId, String productId,
+                          String question, List<RepurchaseCandidate> repurchases) {
         User user = userService.findByEmail(userEmail);
         PlanTier plan = user.getEffectivePlan();
 
@@ -118,7 +127,7 @@ public class ChatService {
                 : productAnalysisPort.findContext(session.getProductId()).orElse(null);
 
         String systemPrompt = promptAssembler.systemPrompt();
-        String userMessage = promptAssembler.buildUserMessage(context, question);
+        String userMessage = promptAssembler.buildUserMessage(context, repurchases, question);
         List<LlmClient.Turn> history = loadHistory(session);
 
         LlmClient.LlmResponse response;
@@ -182,7 +191,7 @@ public class ChatService {
         // 예약: 모델이 옮겨 적은 SCHEDULE 값만 받아 두고, 검사와 저장은 커밋 뒤에 한다 (LLM 추가 호출 없음)
         return new Turn(result, parsed.wantsRecommendations(), session.getProductId(), user,
                 parsed.wantsSchedule() ? parsed.scheduleValue() : null,
-                context == null ? null : context.productName());
+                context == null ? null : context.productName(), repurchases);
     }
 
     /** 오늘 남은 사용량. 프론트가 전송 버튼을 막거나 남은 횟수를 보여줄 때 쓴다 */
@@ -235,11 +244,42 @@ public class ChatService {
     private Optional<ScheduleProposal> proposeSchedule(Turn turn) {
         try {
             return ScheduleRequest.parse(turn.scheduleValue(), LocalDateTime.now(clock))
-                    .flatMap(request -> cartScheduleService.propose(
-                            turn.user(), turn.productId(), turn.productName(), request));
+                    .flatMap(request -> scheduleTarget(turn, request.productRef())
+                            .flatMap(target -> cartScheduleService.propose(
+                                    turn.user(), target.externalId(), target.name(), request)));
         } catch (RuntimeException e) {
             log.warn("[Chat] 예약 제안 실패, 제안 없이 답변만 보낸다 - productId={}", turn.productId(), e);
             return Optional.empty();
+        }
+    }
+
+    /**
+     * 예약할 상품. product= 가 없으면 대화 중인 상품이고, 있으면 대화 중인 상품이거나 이번 턴 프롬프트에
+     * 실은 반복 담기 후보여야 한다. 모델이 아무 상품 주소나 적어 예약하는 것을 막는다.
+     */
+    private Optional<ScheduleTarget> scheduleTarget(Turn turn, String productRef) {
+        if (productRef == null || productRef.equals(turn.productId())) {
+            return turn.productId() == null ? Optional.empty()
+                    : Optional.of(new ScheduleTarget(turn.productId(), turn.productName()));
+        }
+        return turn.repurchases().stream()
+                .filter(c -> productRef.equals(c.externalId()))
+                .findFirst()
+                .map(c -> new ScheduleTarget(c.externalId(), c.name()));
+    }
+
+    private record ScheduleTarget(String externalId, String name) {
+    }
+
+    /** 반복 담기 후보(RAG 검색). 부가 정보라 실패해도 이력 없이 답한다. 대화 트랜잭션 밖에서 부른다 */
+    private List<RepurchaseCandidate> findRepurchases(String userEmail) {
+        try {
+            return repurchaseFinder.findAll(userService.findByEmail(userEmail).getId(), REPURCHASE_PROMPT_LIMIT);
+        } catch (CustomException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            log.warn("[Chat] 반복 담기 이력 조회 실패, 이력 없이 답한다", e);
+            return List.of();
         }
     }
 
@@ -338,11 +378,13 @@ public class ChatService {
     /**
      * @param scheduleValue 주제 안 답변에서 모델이 적은 SCHEDULE 값. 예약 요청이 아니면 null
      * @param productName   대화 상품 이름. 예약할 상품의 번호표가 없을 때 이름으로 쓴다. 모르면 null
+     * @param repurchases   이번 턴 프롬프트에 실은 반복 담기 후보. product= 로 고른 상품이 이 안에 있어야 예약한다
      */
     private record Turn(ChatResult result, boolean wantsRecommendations, String productId,
-                        User user, String scheduleValue, String productName) {
+                        User user, String scheduleValue, String productName,
+                        List<RepurchaseCandidate> repurchases) {
         static Turn of(ChatResult blocked) {
-            return new Turn(blocked, false, null, null, null, null);
+            return new Turn(blocked, false, null, null, null, null, List.of());
         }
     }
 

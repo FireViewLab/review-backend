@@ -2,6 +2,7 @@ package com.example.fireview.domain.cartschedule.service;
 
 import com.example.fireview.domain.cartschedule.NextRunCalculator;
 import com.example.fireview.domain.cartschedule.ScheduleRequest;
+import com.example.fireview.domain.cartschedule.ScheduleRule;
 import com.example.fireview.domain.cartschedule.ScheduleText;
 import com.example.fireview.domain.cartschedule.dto.CartScheduleResponse;
 import com.example.fireview.domain.cartschedule.dto.ScheduleProposal;
@@ -87,6 +88,7 @@ public class CartScheduleService {
      * <p>상태는 엔티티를 고쳐 저장하지 않고 조건부 UPDATE 로 바꾼다. 읽어 둔 엔티티로 저장하면
      * 그 사이 취소된 예약을 되살리거나 실행기가 넘긴 회차를 되돌려 한 번 더 담는다(#269 리뷰).
      * 한도 검사와 확정은 사용자 행 잠금 안에서 해서, 동시에 확정해도 한도를 넘지 않는다.
+     * 같은 상품에 이미 진행 중 예약이 있으면 확정하지 않는다.
      */
     @Transactional
     public CartScheduleResponse confirm(String userEmail, Long scheduleId) {
@@ -94,7 +96,9 @@ public class CartScheduleService {
         CartSchedule schedule = owned(user, scheduleId);
         lockUser(user);
         LocalDateTime now = LocalDateTime.now(clock);
-        if (scheduleRepository.countByUser_IdAndStatus(user.getId(), CartSchedule.ACTIVE) >= MAX_ACTIVE) {
+        // 한 상품에 진행 중 예약은 하나다. 남은 제안이나 메인 버튼 예약과 겹쳐 같은 상품이 두 번씩 담기지 않게 한다(#271 리뷰)
+        if (scheduleRepository.countByUser_IdAndStatus(user.getId(), CartSchedule.ACTIVE) >= MAX_ACTIVE
+                || scheduleRepository.findActiveProductIds(user.getId()).contains(schedule.getProduct().getId())) {
             throw new CustomException(ErrorCode.CART_SCHEDULE_NOT_CONFIRMABLE);
         }
         LocalDateTime next = NextRunCalculator.next(schedule.rule(), now);
@@ -103,6 +107,34 @@ public class CartScheduleService {
             throw new CustomException(ErrorCode.CART_SCHEDULE_NOT_CONFIRMABLE);
         }
         return CartScheduleResponse.from(scheduleRepository.findById(scheduleId).orElseThrow());
+    }
+
+    /**
+     * 확인 단계 없이 바로 확정된 예약을 만든다. 사용자가 요약을 보고 버튼을 직접 눌렀을 때 쓴다(반복 담기 추천).
+     *
+     * @return 만들 수 없으면 비어 있다 — 같은 상품에 진행 중 예약이 있거나, 진행 중 예약이 한도이거나,
+     *         한 번 예약이 이미 지났다
+     */
+    @Transactional
+    public Optional<CartScheduleResponse> createActive(User user, Product product, ScheduleRule rule, int quantity) {
+        lockUser(user);
+        if (scheduleRepository.countByUser_IdAndStatus(user.getId(), CartSchedule.ACTIVE) >= MAX_ACTIVE
+                || scheduleRepository.findActiveProductIds(user.getId()).contains(product.getId())) {
+            return Optional.empty();
+        }
+        LocalDateTime now = LocalDateTime.now(clock);
+        LocalDateTime next = NextRunCalculator.next(rule, now);
+        if (next == null) return Optional.empty();
+        CartSchedule saved = scheduleRepository.save(CartSchedule.builder()
+                .user(user)
+                .product(product)
+                .quantity(quantity)
+                .rule(rule)
+                .nextRunAt(next)
+                .status(CartSchedule.ACTIVE)
+                .createdAt(now)
+                .build());
+        return Optional.of(CartScheduleResponse.from(saved));
     }
 
     /** 예약을 취소한다. 이미 끝났거나 취소한 예약은 그대로 둔다. 상태는 조건부 UPDATE 로 바꾼다 */
