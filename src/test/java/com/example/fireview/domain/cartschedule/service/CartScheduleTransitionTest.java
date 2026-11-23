@@ -80,8 +80,17 @@ class CartScheduleTransitionTest {
     }
 
     private CartSchedule save(String status, LocalDateTime nextRunAt) {
-        return schedules.save(CartSchedule.builder().user(user).product(product).quantity(1).rule(WEEKLY)
+        return save(product, status, nextRunAt);
+    }
+
+    private CartSchedule save(Product target, String status, LocalDateTime nextRunAt) {
+        return schedules.save(CartSchedule.builder().user(user).product(target).quantity(1).rule(WEEKLY)
                 .nextRunAt(nextRunAt).status(status).createdAt(now()).build());
+    }
+
+    /** 한 상품에 진행 중 예약은 하나라, 한도를 볼 때는 예약마다 다른 상품을 쓴다 */
+    private Product another(long id) {
+        return products.save(Product.builder().id(id).name("상품" + id).platform("KURLY").build());
     }
 
     @Test
@@ -110,11 +119,11 @@ class CartScheduleTransitionTest {
     @Test
     void 동시에_확정해도_진행_중_예약_한도를_넘지_않는다() throws Exception {
         for (int i = 0; i < CartScheduleService.MAX_ACTIVE - 1; i++) {
-            save(CartSchedule.ACTIVE, now().plusDays(1));
+            save(another(100L + i), CartSchedule.ACTIVE, now().plusDays(1));
         }
         List<Long> proposals = List.of(
-                save(CartSchedule.PROPOSED, now().plusDays(1)).getId(),
-                save(CartSchedule.PROPOSED, now().plusDays(1)).getId());
+                save(another(200L), CartSchedule.PROPOSED, now().plusDays(1)).getId(),
+                save(another(201L), CartSchedule.PROPOSED, now().plusDays(1)).getId());
 
         ExecutorService pool = Executors.newFixedThreadPool(2);
         CountDownLatch start = new CountDownLatch(1);
