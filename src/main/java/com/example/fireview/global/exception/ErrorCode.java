@@ -58,6 +58,9 @@ public enum ErrorCode {
     CART_SCHEDULE_FORBIDDEN(HttpStatus.FORBIDDEN, "본인의 장바구니 예약만 바꿀 수 있습니다."),
     CART_SCHEDULE_NOT_CONFIRMABLE(HttpStatus.CONFLICT, "확인할 수 없는 예약입니다. 챗봇에 다시 요청해주세요."),
 
+    // Repurchase
+    REPURCHASE_NOT_SCHEDULABLE(HttpStatus.CONFLICT, "지금 정기 예약을 제안할 수 있는 상품이 아닙니다."),
+
     // Common
     INVALID_INPUT(HttpStatus.BAD_REQUEST, "입력값이 올바르지 않습니다."),
     RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "요청한 경로를 찾을 수 없습니다."),
